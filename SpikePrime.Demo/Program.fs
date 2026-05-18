@@ -36,10 +36,10 @@ let main _ =
         use _sub =
             deviceSnapshots hub
             |> Observable.subscribe (fun s ->
-                snapCount <- snapCount + 1
-                if snapCount <= 10 then
+                let n = System.Threading.Interlocked.Increment(&snapCount)
+                if n <= 10 then
                     printfn "    snap[%d]  bat=%s  yaw=%-5d pitch=%-5d roll=%-5d  face=%A"
-                        snapCount
+                        n
                         (s.Battery |> Option.map (sprintf "%d%%") |> Option.defaultValue "?")
                         s.Yaw s.Pitch s.Roll s.Orientation
                     for port, reading in s.Ports do
