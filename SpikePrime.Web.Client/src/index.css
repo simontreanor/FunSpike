@@ -169,7 +169,7 @@ body {
 .imu-unit {
     color: var(--yellow);
     font-family: system-ui, sans-serif;
-    font-size: 0.68rem;
+    font-size: 0.82rem;
 }
 
 .imu-table-gyro { margin-top: 0.6rem; }

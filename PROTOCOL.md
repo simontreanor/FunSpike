@@ -109,15 +109,15 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 | 0 | byte | type | `0x01` |
 | 1 | byte | faceUp | Physical face pointing up; maps to one of 6 orientations (see below) |
 | 2 | byte | **yawRef** (inferred) | Always observed as `0x00`. Hypothesis: the face designation stored when `hub.imu.reset_heading()` is called — records which face was "forward" at the moment heading was zeroed, so the hub can track relative yaw from that reference. Defaults to `0` at boot; only changes if reset_heading is called, which this codebase never does. |
-| 3–4 | int16 | yaw | Degrees |
-| 5–6 | int16 | pitch | Degrees |
-| 7–8 | int16 | roll | Degrees |
+| 3–4 | int16 | yaw | Decidegrees ÷ 10 → degrees (range ±1800 raw = ±180°) |
+| 5–6 | int16 | pitch | Decidegrees ÷ 10 → degrees |
+| 7–8 | int16 | roll | Decidegrees ÷ 10 → degrees |
 | 9–10 | int16 | accX | Accelerometer X, cm/s² (981 = 1g ≈ 9.81 m/s²) |
 | 11–12 | int16 | accY | Accelerometer Y, cm/s² |
 | 13–14 | int16 | accZ | Accelerometer Z, cm/s² |
-| 15–16 | int16 | gyroX | Gyroscope rate X, degrees per second |
-| 17–18 | int16 | gyroY | Gyroscope rate Y, degrees per second |
-| 19–20 | int16 | gyroZ | Gyroscope rate Z, degrees per second |
+| 15–16 | int16 | gyroX | Gyroscope rate X, deci-°/s ÷ 10 → °/s |
+| 17–18 | int16 | gyroY | Gyroscope rate Y, deci-°/s ÷ 10 → °/s |
+| 19–20 | int16 | gyroZ | Gyroscope rate Z, deci-°/s ÷ 10 → °/s |
 
 **Orientation values (from LEGO stock firmware Python constants — BLE byte stream not yet empirically verified):**
 

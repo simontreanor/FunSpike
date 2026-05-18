@@ -253,15 +253,15 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
             offset <- offset + 2
 
         | d when d = DevImu && remaining >= 21 ->
-            let yaw   = BitConverter.ToInt16(data, offset + 3)  |> asDeg16
-            let pitch = BitConverter.ToInt16(data, offset + 5)  |> asDeg16
-            let roll  = BitConverter.ToInt16(data, offset + 7)  |> asDeg16
+            let yaw   = BitConverter.ToInt16(data, offset + 3)  / 10s |> asDeg16
+            let pitch = BitConverter.ToInt16(data, offset + 5)  / 10s |> asDeg16
+            let roll  = BitConverter.ToInt16(data, offset + 7)  / 10s |> asDeg16
             let accX  = BitConverter.ToInt16(data, offset + 9)  |> asCms2
             let accY  = BitConverter.ToInt16(data, offset + 11) |> asCms2
             let accZ  = BitConverter.ToInt16(data, offset + 13) |> asCms2
-            let gyroX = BitConverter.ToInt16(data, offset + 15) |> asDps
-            let gyroY = BitConverter.ToInt16(data, offset + 17) |> asDps
-            let gyroZ = BitConverter.ToInt16(data, offset + 19) |> asDps
+            let gyroX = BitConverter.ToInt16(data, offset + 15) / 10s |> asDps
+            let gyroY = BitConverter.ToInt16(data, offset + 17) / 10s |> asDps
+            let gyroZ = BitConverter.ToInt16(data, offset + 19) / 10s |> asDps
             s <- { s with
                      Orientation = toOrientation data.[offset+1]
                      Yaw    = yaw
