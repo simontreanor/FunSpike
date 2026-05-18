@@ -277,6 +277,60 @@ let deviceSnapshots (hub: Hub) : IObservable<DeviceSnapshot> =
     |> Observable.choose tryParseDeviceSnapshot
 
 // ---------------------------------------------------------------------------
+// Raw block extraction — for protocol analysis and gap-filling
+// ---------------------------------------------------------------------------
+
+/// One raw device-data block as found inside a streaming frame.
+/// Used to display raw bytes alongside parsed values in the visualiser.
+type DeviceBlock =
+    { TypeByte : byte    // device type code (0x00=battery, 0x01=imu, 0x0A=motor, …)
+      Offset   : int     // byte offset within the device-data section
+      Raw      : byte[] } // all bytes of this block
+
+/// Walk a device-data byte array and extract the raw slice for each block.
+/// Mirrors the length rules in parseDeviceData.
+let private extractBlocks (data: byte[]) : DeviceBlock list =
+    let blocks = ResizeArray<DeviceBlock>()
+    let mutable offset = 0
+    while offset < data.Length do
+        let devType   = data.[offset]
+        let remaining = data.Length - offset
+        let len =
+            match devType with
+            | 0x02uy when remaining >= 26 -> 26
+            | d when d = DevBattery  && remaining >= 2  -> 2
+            | d when d = DevImu      && remaining >= 21 -> 21
+            | d when d = DevMotor    && remaining >= 12 -> 12
+            | d when d = DevForce    && remaining >= 4  -> 4
+            | d when d = DevColor    && remaining >= 10 -> 10
+            | d when d = DevDistance && remaining >= 4  -> 4
+            | _ -> remaining  // unknown type — consume the rest
+        if len > 0 then
+            blocks.Add({ TypeByte = devType; Offset = offset; Raw = data.[offset .. offset + len - 1] })
+            offset <- offset + len
+        else
+            offset <- data.Length  // safety: prevent infinite loop
+    List.ofSeq blocks
+
+/// Like deviceSnapshots but also yields the raw DeviceBlock list for each frame.
+/// Used by the visualiser to show raw bytes alongside parsed values.
+let deviceSnapshotsWithRaw (hub: Hub) : IObservable<DeviceBlock list * DeviceSnapshot> =
+    streamingFrames hub
+    |> Observable.choose (fun frame ->
+        match unpackFrame (rawBytesOf frame) with
+        | None -> None
+        | Some payload ->
+            if payload.Length < 3 || payload.[0] <> 0x3Cuy then None
+            else
+                let payloadSize = int (BitConverter.ToUInt16(payload, 1))
+                if 3 + payloadSize > payload.Length then None
+                else
+                    let deviceData = payload.[3 .. 2 + payloadSize]
+                    let blocks     = extractBlocks deviceData
+                    let snap       = parseDeviceData deviceData emptySnapshot
+                    Some (blocks, snap))
+
+// ---------------------------------------------------------------------------
 // Motor control  (MSG_TUNNEL JSON commands, COBS+XOR encoded)
 // ---------------------------------------------------------------------------
 

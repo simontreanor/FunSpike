@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="SpikePrime.Demo/SpikePrime.Demo.fsproj" />
   <Project Path="SpikePrime/SpikePrime.fsproj" />
+  <Project Path="SpikePrime.Web/SpikePrime.Web.fsproj" />
+  <Project Path="SpikePrime.Web.Client/SpikePrime.Web.Client.fsproj" />
 </Solution>
