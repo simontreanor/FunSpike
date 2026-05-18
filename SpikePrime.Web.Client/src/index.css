@@ -260,6 +260,23 @@ body {
 
 .byte-cell.byte-unknown .byte-lbl { color: var(--hex-gap); opacity: 0.8; }
 
+/* ── 5×5 Matrix display ───────────────────────────────────────────────────── */
+.matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+    width: 110px;
+    margin-top: 0.35rem;
+}
+
+.matrix-pixel {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    border: 1px solid rgba(250,204,21,.15);
+    background: rgba(250,204,21,0);
+    transition: background 0.12s;
+}
+
 /* ── Misc ─────────────────────────────────────────────────────────────────── */
 .waiting {
     padding: 3rem;

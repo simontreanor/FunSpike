@@ -20,6 +20,7 @@ module SpikePrime.Protocol
 // Device-notification device type codes (within a 0x3C payload):
 //   0x00  battery    2  bytes: [level]
 //   0x01  IMU       21  bytes: [faceUp, yawFace, yaw(i16), pitch(i16), roll(i16), accX(i16), accY(i16), accZ(i16), …]
+//   0x02  5×5 matrix 26  bytes: [type, pix0..pix24] — 25 pixel brightness values 0–100, row-major
 //   0x0A  motor     12  bytes: [portId, subType, position(i16,[0..359]°), power(i16,%), speed(i8,%), relativePosition(i32,°)]
 //   0x0B  force      4  bytes: [portId, pct, pressed]
 //   0x0C  color     10  bytes: [portId, colorId[0..15], reflect%, R, G, B, ???×3]

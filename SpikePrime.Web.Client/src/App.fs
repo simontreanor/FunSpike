@@ -32,6 +32,7 @@ type ISnapshot =
     abstract accX: int
     abstract accY: int
     abstract accZ: int
+    abstract matrix: int[]        // 25 pixel brightness values (0–100), row-major; empty = no data
     abstract ports: IPort[]
     abstract blocks: IBlock[]
 
@@ -66,27 +67,6 @@ let rec initWs () =
         // Only treat as a full snapshot when ports data is present
         if not (isNull (!!msg?ports)) then
             setSnapshot (Some (!!msg : ISnapshot)) |> ignore
-
-[<Emit("parseInt($0, 16)")>]
-let private hexToInt (s: string) : int = jsNative
-
-/// Short label for the config block annotation — resolves hex string → pybricks name.
-let private configByteLabel (portLetter: string) (hexStr: string) =
-    let id = hexToInt hexStr
-    let name =
-        match id with
-        | 0    -> "empty"
-        | 0x30 -> "MedMtr"
-        | 0x31 -> "LgMtr"
-        | 0x3D -> "Color"
-        | 0x3E -> "Dist"
-        | 0x3F -> "Force"
-        | 0x40 -> "Matrix"
-        | 0x41 -> "SAngMtr"
-        | 0x4B -> "MAngMtr"
-        | 0x4C -> "LAngMtr"
-        | _    -> "???"
-    $"{portLetter}:{name}?"
 
 // ── Byte annotation ───────────────────────────────────────────────────────────
 // Returns {| hex; lbl; known |} for each byte — highlights gaps in the raw dump.
@@ -155,27 +135,30 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
     | "battery" ->
         [| {| hex=get 0; lbl="type"; known=true |}
            {| hex=get 1; lbl="bat";  known=true |} |]
-    | "config" ->
-        // 0x02 block: [type][header?] then 6 ports × 4 bytes (hypothesis).
-        // First byte of each 4-byte entry = suspected pybricks I/O device type ID.
-        let ports = [| "A"; "B"; "C"; "D"; "E"; "F" |]
-        let portEntry p off =
-            [| {| hex=get off;       lbl=configByteLabel p (get off); known=false |}
-               {| hex=get (off+1);   lbl=p + ":???";                  known=false |}
-               {| hex=get (off+2);   lbl=p + ":???";                  known=false |}
-               {| hex=get (off+3);   lbl=p + ":???";                  known=false |} |]
-        Array.concat
-            [| [| {| hex=get 0; lbl="type"; known=true  |}
-                  {| hex=get 1; lbl="hdr?"; known=false |} |]
-               portEntry ports.[0] 2
-               portEntry ports.[1] 6
-               portEntry ports.[2] 10
-               portEntry ports.[3] 14
-               portEntry ports.[4] 18
-               portEntry ports.[5] 22 |]
+    | "matrix" ->
+        // 0x02 block: type byte + 25 pixel brightness values (5×5 row-major, 0–100)
+        let pixelCell i =
+            let row = (i - 1) / 5
+            let col = (i - 1) % 5
+            {| hex=get i; lbl=sprintf "r%dc%d" row col; known=true |}
+        [| yield {| hex=get 0; lbl="type"; known=true |}
+           yield! [| 1..25 |] |> Array.map pixelCell |]
     | _ ->
         let lbl i = if i = 0 then "type" else "?"
         hexBytes |> Array.mapi (fun i b -> {| hex=b; lbl=lbl i; known=(i=0) |})
+
+// ── Hub 5×5 matrix display ───────────────────────────────────────────────────
+
+[<SolidComponent>]
+let MatrixDisplay (pixels: int[]) =
+    div(class'="matrix-grid") {
+        For(each=pixels) {
+            yield fun pct _ ->
+                div(class'="matrix-pixel",
+                    style=(sprintf "background:rgba(250,204,21,%.2f)" (float pct * 0.01)),
+                    title=(sprintf "%d%%" pct)) {}
+        }
+    }
 
 // ── Hub face cross layout ─────────────────────────────────────────────────────
 // 3-column unfolded cube cross:
@@ -328,6 +311,8 @@ let SnapshotView () =
                     if snap.battery >= 0 then $"\U0001F50B {snap.battery}%%"
                     else "\U0001F50B \u2014"
                 }
+                h3(style="margin-top:0.75rem") { "Matrix Display" }
+                MatrixDisplay snap.matrix
             }
             ImuPanel snap
         }

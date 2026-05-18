@@ -25,7 +25,7 @@ let private toHex (bs: byte[]) =
 let private blockTypeName = function
     | 0x00uy -> "battery"
     | 0x01uy -> "imu"
-    | 0x02uy -> "config"
+    | 0x02uy -> "matrix"
     | 0x0Auy -> "motor"
     | 0x0Buy -> "force"
     | 0x0Cuy -> "color"
@@ -84,6 +84,7 @@ let private toJson (blocks: DeviceBlock list) (snap: DeviceSnapshot) : string =
            accX        = int snap.AccX
            accY        = int snap.AccY
            accZ        = int snap.AccZ
+           matrix      = snap.MatrixDisplay |> Option.map (Array.map int) |> Option.defaultValue [||]
            ports =
                snap.Ports
                |> List.sortBy (fun (p, _) -> portIndex p)

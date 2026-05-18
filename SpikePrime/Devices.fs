@@ -179,24 +179,29 @@ type HubOrientation = Top | Front | RightSide | Bottom | Back | LeftSide
 
 /// Parsed snapshot from one MSG_DEVICE_NOTIFICATION (0x3C) frame.
 type DeviceSnapshot =
-    { Battery     : byte option
-      Ports       : (Port * PortReading) list
-      Orientation : HubOrientation
-      Yaw         : int16<deg>
-      Pitch       : int16<deg>
-      Roll        : int16<deg>
-      GyroX       : int16<dps>  // gyroscope rate X, degrees per second
-      GyroY       : int16<dps>  // gyroscope rate Y, degrees per second
-      GyroZ       : int16<dps>  // gyroscope rate Z, degrees per second
-      AccX        : int16<cms2>  // accelerometer X, cm/s² (981 = 1g)
-      AccY        : int16<cms2>  // accelerometer Y, cm/s²
-      AccZ        : int16<cms2> }// accelerometer Z, cm/s²
+    { Battery      : byte option
+      Ports        : (Port * PortReading) list
+      Orientation  : HubOrientation
+      Yaw          : int16<deg>
+      Pitch        : int16<deg>
+      Roll         : int16<deg>
+      GyroX        : int16<dps>   // gyroscope rate X, degrees per second
+      GyroY        : int16<dps>   // gyroscope rate Y, degrees per second
+      GyroZ        : int16<dps>   // gyroscope rate Z, degrees per second
+      AccX         : int16<cms2>  // accelerometer X, cm/s² (981 = 1g)
+      AccY         : int16<cms2>  // accelerometer Y, cm/s²
+      AccZ         : int16<cms2>  // accelerometer Z, cm/s²
+      /// 5×5 LED matrix display: 25 pixel brightness values (0–100), row-major.
+      /// Byte 0 = row 0 col 0 (top-left) … byte 24 = row 4 col 4 (bottom-right).
+      /// Absent if no 0x02 block was received yet.
+      MatrixDisplay : byte[] option }
 
 let private emptySnapshot =
     { Battery=None; Ports=[]; Orientation=Top
       Yaw=0s<deg>; Pitch=0s<deg>; Roll=0s<deg>
       GyroX=0s<dps>; GyroY=0s<dps>; GyroZ=0s<dps>
-      AccX=0s<cms2>; AccY=0s<cms2>; AccZ=0s<cms2> }
+      AccX=0s<cms2>; AccY=0s<cms2>; AccZ=0s<cms2>
+      MatrixDisplay=None }
 
 // Device type codes in the notification payload.
 [<Literal>]
@@ -236,8 +241,11 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
         let remaining = data.Length - offset
         match devType with
         | 0x02uy when remaining >= 26 ->
-            // Hub/port-configuration block: 2-byte header + 6 ports × 4 bytes = 26 total.
-            // No sensor values; skip.
+            // 5×5 LED matrix display block: type byte + 25 pixel brightness values.
+            // Each value is 0–100 (0x00 = off, 0x64 = full brightness).
+            // Pixels are row-major: index = row*5 + col, row 0 = top, col 0 = left.
+            let pixels = data.[offset + 1 .. offset + 25]
+            s      <- { s with MatrixDisplay = Some pixels }
             offset <- offset + 26
 
         | d when d = DevBattery && remaining >= 2 ->
@@ -343,7 +351,7 @@ let private extractBlocks (data: byte[]) : DeviceBlock list =
         let remaining = data.Length - offset
         let len =
             match devType with
-            | 0x02uy when remaining >= 26 -> 26
+            | 0x02uy when remaining >= 26 -> 26  // 5×5 matrix display (type + 25 pixels)
             | d when d = DevBattery  && remaining >= 2  -> 2
             | d when d = DevImu      && remaining >= 21 -> 21
             | d when d = DevMotor    && remaining >= 12 -> 12

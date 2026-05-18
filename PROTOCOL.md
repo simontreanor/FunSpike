@@ -136,15 +136,38 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 
 ---
 
-#### 0x02 — Hub/port configuration (26 bytes)
+#### 0x02 — 5×5 LED matrix display (26 bytes)
 
 ```
-[0x02] [? × 25]
+[0x02] [pix_0] [pix_1] ... [pix_24]
 ```
 
-Appears at the start of each device-notification frame. Contains port configuration (which sensor types are attached to which port). Internal structure not reverse-engineered. We skip all 26 bytes.
+The hub's built-in 5×5 LED matrix display, broadcast in every streaming frame. Contains 25 pixel brightness values in row-major order.
 
-> **Gap**: Full structure unknown. Likely encodes `[type, someHeader, port0type, port0flags, port1type, port1flags, ...]` or similar, but this has not been verified.
+| Offset | Type | Field | Notes |
+|---|---|---|---|
+| 0 | byte | type | `0x02` |
+| 1–25 | byte × 25 | pixels | Pixel brightness, 0–100. `0x00` = off, `0x64` = full brightness (100 %). Row-major: pixel index = row × 5 + col, row 0 = top, col 0 = left. |
+
+**Confirmed by** observing the heart image (`0x64` at positions matching the heart pattern, `0x00` at off pixels) in every streaming frame when the hub is in its default idle state. Button press that changes the displayed image produces the corresponding pixel-value changes.
+
+> **Gap**: Intermediate brightness values (1–99) are theoretically possible — the Pybricks API accepts 0–100 for each pixel — but have not been observed in BLE captures.
+
+---
+
+#### Hub hardware not in the streaming data
+
+The following hub-internal hardware features are **not present** in the `0x3C` streaming notifications. They do not appear as any device block — no unknown block type was found in captured frames:
+
+| Feature | Notes |
+|---|---|
+| Centre button (go/stop) | Pressed state not streamed. Light colour (green/white/red/orange) not streamed. |
+| Left / right buttons | Pressed states not streamed. |
+| Bluetooth button | Pressed state and indicator LED not streamed. |
+| Speaker | Output only; no state in stream. |
+| USB charging port | No data in stream. |
+
+> **Gap**: Button states and hub-LED colours may be queryable via a separate command (MSG_QUERY or similar), or the hub may push them as a different message type (not `0x3C`). This has not been reverse-engineered.
 
 ---
 
