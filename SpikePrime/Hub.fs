@@ -44,6 +44,9 @@ type Hub(conn: HubConnection) =
     /// (streaming sensor data, hub state broadcasts, unmatched responses).
     member _.Notifications : IObservable<HubFrame> = notifEvt.Publish :> _
 
+    /// Fired when the underlying BLE device disconnects.
+    member _.Disconnected : IObservable<unit> = conn.Disconnected
+
     /// Send the init handshake (00 00 02) and wait briefly for the hub state packet.
     member _.InitAsync() : Task =
         task {

@@ -49,11 +49,15 @@ let private newWs (url: string) : obj = jsNative
 [<Emit("JSON.parse($0)")>]
 let private jsonParse<'T> (s: string) : 'T = jsNative
 
-let initWs () =
+let rec initWs () =
     let url = $"ws://{Dom.window.location.host}/ws"
     let ws  = newWs url
-    ws?onopen    <- fun _ -> setConnected true  |> ignore
-    ws?onclose   <- fun _ -> setConnected false |> ignore
+    ws?onopen    <- fun _ -> setConnected true |> ignore
+    ws?onclose   <- fun _ ->
+        setConnected false    |> ignore
+        setHubConnected false |> ignore
+        // Reconnect after 2 s — picks up server restarts automatically
+        Dom.window.setTimeout((fun _ -> initWs()), 2000) |> ignore
     ws?onerror   <- fun _ -> setConnected false |> ignore
     ws?onmessage <- fun (e: obj) ->
         let msg : obj = jsonParse (!!e?data)

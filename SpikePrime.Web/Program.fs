@@ -128,24 +128,37 @@ type HubStreamService(logger: ILogger<HubStreamService>) =
 
     override _.ExecuteAsync(ct: CancellationToken) =
         task {
-            logger.LogInformation("Waiting for hub — press the centre button on the SPIKE Prime…")
-            try
-                use! hub = SpikePrime.Hub.connectFirstAsync(TimeSpan.FromSeconds 120.0, None)
-                logger.LogInformation("Hub connected!")
-                do! hub.InitAsync()
-                do! startStreamingAsync hub
-                logger.LogInformation("Streaming started — broadcasting at ~10 Hz.")
-                broadcastHubStatus true
-                use _sub =
-                    deviceSnapshotsWithRaw hub
-                    |> Observable.subscribe (fun (blocks, snap) ->
-                        broadcast (toJson blocks snap))
-                do! Task.Delay(Timeout.Infinite, ct)
-            with
-            | :? OperationCanceledException -> ()
-            | ex ->
-                logger.LogError(ex, "Hub stream error")
-                broadcastHubStatus false
+            while not ct.IsCancellationRequested do
+                logger.LogInformation("Waiting for hub…")
+                try
+                    use! hub = SpikePrime.Hub.connectFirstAsync(TimeSpan.FromSeconds 120.0, None)
+                    logger.LogInformation("Hub connected!")
+                    do! hub.InitAsync()
+                    do! startStreamingAsync hub
+                    logger.LogInformation("Streaming started — broadcasting at ~10 Hz.")
+                    broadcastHubStatus true
+                    // Per-connection CTS so a disconnect unblocks Task.Delay and loops back
+                    use hubCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
+                    use _disconnectSub =
+                        hub.Disconnected
+                        |> Observable.subscribe (fun () ->
+                            logger.LogInformation("Hub disconnected — will reconnect.")
+                            broadcastHubStatus false
+                            hubCts.Cancel())
+                    use _sub =
+                        deviceSnapshotsWithRaw hub
+                        |> Observable.subscribe (fun (blocks, snap) ->
+                            broadcast (toJson blocks snap))
+                    try
+                        do! Task.Delay(Timeout.Infinite, hubCts.Token)
+                    with :? OperationCanceledException -> ()
+                with
+                | :? OperationCanceledException -> ()
+                | ex ->
+                    logger.LogError(ex, "Hub stream error — retrying in 3 s.")
+                    broadcastHubStatus false
+                    if not ct.IsCancellationRequested then
+                        do! Task.Delay(3000, ct)
         }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

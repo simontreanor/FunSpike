@@ -76,8 +76,13 @@ type HubConnection(device: BluetoothLEDevice, rxChar: GattCharacteristic, txChar
 
     let mtu = 20  // Conservative ATT payload (20 bytes); hub reassembles on CR delimiter
 
-    let dataWritten = Event<byte[]>()
-    let dataReceived = Event<byte[]>()
+    let dataWritten   = Event<byte[]>()
+    let dataReceived  = Event<byte[]>()
+    let disconnected  = Event<unit>()
+
+    do device.add_ConnectionStatusChanged(fun dev _ ->
+        if dev.ConnectionStatus = BluetoothConnectionStatus.Disconnected then
+            disconnected.Trigger())
 
     member _.Device         = device
     member _.RxChar         = rxChar
@@ -85,6 +90,9 @@ type HubConnection(device: BluetoothLEDevice, rxChar: GattCharacteristic, txChar
 
     /// Fired whenever the hub sends a notification chunk.
     member _.DataReceived   = dataReceived.Publish :> IObservable<byte[]>
+
+    /// Fired when the BLE device reports a disconnection.
+    member _.Disconnected   = disconnected.Publish :> IObservable<unit>
 
     /// Write bytes to the hub, splitting into MTU-sized chunks.
     member _.WriteAsync(data: byte[], ?cancellationToken: CancellationToken) : Task =
