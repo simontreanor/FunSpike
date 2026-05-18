@@ -42,13 +42,12 @@ let main _ =
                         snapCount
                         (s.Battery |> Option.map (sprintf "%d%%") |> Option.defaultValue "?")
                         s.Yaw s.Pitch s.Roll s.FaceUp
-                    for portId, reading in s.Ports do
-                        let portLetter = [|'A';'B';'C';'D';'E';'F'|].[portId]
+                    for port, reading in s.Ports do
                         match reading with
-                        | Distance mm        -> printfn "        port %c  distance = %d mm" portLetter mm
-                        | Motor(pos,spd,pwr) -> printfn "        port %c  motor pos=%d speed=%d power=%d" portLetter pos spd pwr
-                        | Color cid          -> printfn "        port %c  color id=%d" portLetter cid
-                        | Force(pct,pressed) -> printfn "        port %c  force=%d%% pressed=%b" portLetter pct pressed)
+                        | Distance d         -> printfn "        port %A  distance = %d mm" port d
+                        | Motor m            -> printfn "        port %A  motor pos=%d speed=%d power=%d" port m.Position m.Speed m.Power
+                        | Color cid          -> printfn "        port %A  color id=%d" port cid
+                        | Force(pct,pressed) -> printfn "        port %A  force=%d%% pressed=%b" port pct pressed)
 
         do! Task.Delay(3000)
         printfn "    %d snapshots parsed." snapCount

@@ -10,6 +10,40 @@ open SpikePrime.Protocol
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// Units of measure
+// ---------------------------------------------------------------------------
+
+/// Millimetres — used for distance sensor readings.
+[<Measure>] type mm
+/// Degrees — used for motor position and IMU orientation angles.
+[<Measure>] type deg
+/// Percent (0–100) — used for motor speed input.
+[<Measure>] type pct
+
+// ---------------------------------------------------------------------------
+// Port
+// ---------------------------------------------------------------------------
+
+/// A physical port on the SPIKE Prime hub (A–F).
+type Port = A | B | C | D | E | F
+
+/// Convert a wire port index (0–5) to a Port value.
+let private toPort = function
+    | 0 -> Port.A | 1 -> Port.B | 2 -> Port.C
+    | 3 -> Port.D | 4 -> Port.E | 5 -> Port.F
+    | n -> failwith $"Unexpected port index: {n}"
+
+/// Convert a Port value to its wire index (0–5).
+let private portIndex (port: Port) =
+    match port with
+    | Port.A -> 0 | Port.B -> 1 | Port.C -> 2
+    | Port.D -> 3 | Port.E -> 4 | Port.F -> 5
+
+let inline private asDeg16 (x : int16) : int16<deg> = LanguagePrimitives.Int16WithMeasure x
+let inline private asDeg32 (x : int32) : int32<deg> = LanguagePrimitives.Int32WithMeasure x
+let inline private asMm    (x : int16) : int16<mm>  = LanguagePrimitives.Int16WithMeasure x
+
+// ---------------------------------------------------------------------------
 // Firmware / hub info
 // ---------------------------------------------------------------------------
 
@@ -63,27 +97,33 @@ let streamingFrames (hub: Hub) : IObservable<HubFrame> =
 // Device-notification parsing
 // ---------------------------------------------------------------------------
 
+/// Motor position (degrees), speed, and power read from a port.
+type MotorReading =
+    { Position : int32<deg>
+      Speed    : int8    // raw unit unclear
+      Power    : int16 } // raw unit unclear
+
 /// Data read from a single connected port in a device-notification frame.
 type PortReading =
-    | Motor    of position: int32 * speed: int8 * power: int16
-    | Distance of mm: int16
+    | Motor    of MotorReading
+    | Distance of int16<mm>
     | Color    of colorId: byte
     | Force    of pct: byte * pressed: bool
 
 /// Parsed snapshot from one MSG_DEVICE_NOTIFICATION (0x3C) frame.
 type DeviceSnapshot =
     { Battery : byte option
-      Ports   : (int * PortReading) list   // (portId 0-5) × reading
-      Yaw     : int16
-      Pitch   : int16
-      Roll    : int16
+      Ports   : (Port * PortReading) list
+      Yaw     : int16<deg>
+      Pitch   : int16<deg>
+      Roll    : int16<deg>
       AccX    : int16
       AccY    : int16
       AccZ    : int16
       FaceUp  : byte }
 
 let private emptySnapshot =
-    { Battery=None; Ports=[]; Yaw=0s; Pitch=0s; Roll=0s; AccX=0s; AccY=0s; AccZ=0s; FaceUp=0uy }
+    { Battery=None; Ports=[]; Yaw=0s<deg>; Pitch=0s<deg>; Roll=0s<deg>; AccX=0s; AccY=0s; AccZ=0s; FaceUp=0uy }
 
 // Device type codes in the notification payload.
 [<Literal>]
@@ -124,9 +164,9 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
             offset <- offset + 2
 
         | d when d = DevImu && remaining >= 21 ->
-            let yaw   = BitConverter.ToInt16(data, offset + 3)
-            let pitch = BitConverter.ToInt16(data, offset + 5)
-            let roll  = BitConverter.ToInt16(data, offset + 7)
+            let yaw   = BitConverter.ToInt16(data, offset + 3)  |> asDeg16
+            let pitch = BitConverter.ToInt16(data, offset + 5)  |> asDeg16
+            let roll  = BitConverter.ToInt16(data, offset + 7)  |> asDeg16
             let accX  = BitConverter.ToInt16(data, offset + 9)
             let accY  = BitConverter.ToInt16(data, offset + 11)
             let accZ  = BitConverter.ToInt16(data, offset + 13)
@@ -141,31 +181,29 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
             offset <- offset + 21
 
         | d when d = DevMotor && remaining >= 12 ->
-            let portId = int data.[offset + 1]
-            let absPos = BitConverter.ToInt16(data, offset + 3)
+            let port   = toPort (int data.[offset + 1])
             let power  = BitConverter.ToInt16(data, offset + 5)
             let speed  = int8 data.[offset + 7]
-            // position (int32) at bytes 8-11
-            let pos    = BitConverter.ToInt32(data, offset + 8)
-            s      <- { s with Ports = (portId, Motor(pos, speed, power)) :: s.Ports }
+            let pos    = BitConverter.ToInt32(data, offset + 8) |> asDeg32
+            s      <- { s with Ports = (port, Motor { Position = pos; Speed = speed; Power = power }) :: s.Ports }
             offset <- offset + 12
 
         | d when d = DevForce && remaining >= 4 ->
-            let portId  = int data.[offset + 1]
+            let port    = toPort (int data.[offset + 1])
             let pct     = data.[offset + 2]
             let pressed = data.[offset + 3] = 1uy
-            s      <- { s with Ports = (portId, Force(pct, pressed)) :: s.Ports }
+            s      <- { s with Ports = (port, Force(pct, pressed)) :: s.Ports }
             offset <- offset + 4
 
         | d when d = DevColor && remaining >= 10 ->
-            let portId = int data.[offset + 1]
-            s      <- { s with Ports = (portId, Color(data.[offset + 2])) :: s.Ports }
+            let port = toPort (int data.[offset + 1])
+            s      <- { s with Ports = (port, Color(data.[offset + 2])) :: s.Ports }
             offset <- offset + 10
 
         | d when d = DevDistance && remaining >= 4 ->
-            let portId = int data.[offset + 1]
-            let mm     = BitConverter.ToInt16(data, offset + 2)
-            s      <- { s with Ports = (portId, Distance mm) :: s.Ports }
+            let port = toPort (int data.[offset + 1])
+            let mm   = BitConverter.ToInt16(data, offset + 2) |> asMm
+            s      <- { s with Ports = (port, Distance mm) :: s.Ports }
             offset <- offset + 4
 
         | _ -> offset <- data.Length   // unknown device type — skip remainder
@@ -195,22 +233,15 @@ let deviceSnapshots (hub: Hub) : IObservable<DeviceSnapshot> =
 // Motor control  (MSG_TUNNEL JSON commands, COBS+XOR encoded)
 // ---------------------------------------------------------------------------
 
-/// Map a port letter (A-F) to its numeric port ID (0-5).
-let private portId (port: char) =
-    match Char.ToUpper(port) with
-    | 'A' -> 0 | 'B' -> 1 | 'C' -> 2
-    | 'D' -> 3 | 'E' -> 4 | 'F' -> 5
-    | c   -> failwith $"Invalid port letter: {c}"
-
-/// Start a motor at the given port letter (A-F) and speed (-100 to 100 %).
-let motorStartAsync (port: char) (speed: int) (hub: Hub) : Task =
-    let p    = portId port
-    let s    = Math.Max(-100, Math.Min(100, speed))
-    let json = sprintf """{"m":"motor","p":{"port":%d,"speed":%d}}""" p s
+/// Start a motor on the given Port at speed (–100 to 100 pct).
+let motorStartAsync (port: Port) (speed: int<pct>) (hub: Hub) : Task =
+    let p    = portIndex port
+    let s    = max -100<pct> (min 100<pct> speed)
+    let json = sprintf """{"m":"motor","p":{"port":%d,"speed":%d}}""" p (int s)
     hub.SendMessageAsync(encodeTunnelCommand json)
 
-/// Stop a motor (brake) on the given port letter.
-let motorStopAsync (port: char) (hub: Hub) : Task =
-    let p    = portId port
+/// Coast-stop a motor on the given Port.
+let motorStopAsync (port: Port) (hub: Hub) : Task =
+    let p    = portIndex port
     let json = sprintf """{"m":"motor","p":{"port":%d,"speed":0,"end_state":1}}""" p
     hub.SendMessageAsync(encodeTunnelCommand json)
