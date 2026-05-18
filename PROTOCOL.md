@@ -151,7 +151,7 @@ The hub's built-in 5×5 LED matrix display, broadcast in every streaming frame. 
 
 **Confirmed by** observing the heart image (`0x64` at positions matching the heart pattern, `0x00` at off pixels) in every streaming frame when the hub is in its default idle state. Button press that changes the displayed image produces the corresponding pixel-value changes.
 
-> **Gap**: Intermediate brightness values (1–99) are theoretically possible — the Pybricks API accepts 0–100 for each pixel — but have not been observed in BLE captures.
+> **Gap**: Intermediate brightness values (1–99) are theoretically possible — the LEGO firmware accepts 0–100 for each pixel — but have not been observed in BLE captures.
 
 ---
 
@@ -181,13 +181,12 @@ The following hub-internal hardware features are **not present** in the `0x3C` s
 |---|---|---|---|
 | 0 | byte | type | `0x0A` |
 | 1 | byte | portId | 0 = A, 1 = B, … 5 = F |
-| 2 | byte | **unknown** | Possibly motor sub-type or mode; always observed as 0 |
+| 2 | byte | ioDeviceType | LEGO I/O device type ID (e.g. 0x30 = MediumMotor, 0x31 = LargeMotor, 0x4C = LargeAngularMotor — see `Devices.parseIoDeviceType`). Confirmed empirically. |
 | 3–4 | int16 | position | Absolute shaft angle, [0..359]° (modulo, wraps at 360) |
 | 5–6 | int16 | power | Motor power, −100..100 % |
 | 7 | int8 | speed | Motor speed, −100..100 % |
 | 8–11 | int32 | relativePosition | Accumulating encoder count in degrees; can grow past ±360 |
 
-> **Gap**: Motor byte [2] (subType) — unknown. Possibly distinguishes large/medium/small motor variants.
 > **Gap**: `relativePosition` exact semantics — does it reset on connect, on a specific command, or never?
 
 ---
@@ -210,7 +209,7 @@ The following hub-internal hardware features are **not present** in the `0x3C` s
 #### 0x0C — Color sensor (10 bytes)
 
 ```
-[0x0C] [portId] [colorId] [reflect] [red] [green] [blue] [? ? ?]
+[0x0C] [portId] [colorId] [reflect] [R lo] [R hi] [G lo] [G hi] [B lo] [B hi]
 ```
 
 | Offset | Type | Field | Notes |
@@ -219,14 +218,12 @@ The following hub-internal hardware features are **not present** in the `0x3C` s
 | 1 | byte | portId | 0 = A … 5 = F |
 | 2 | byte | colorId | Detected color [0..15]; 255 = no color / too dark |
 | 3 | byte | reflect | Reflected light intensity, 0–100 % |
-| 4 | byte | red | Red channel, 0–255 |
-| 5 | byte | green | Green channel, 0–255 |
-| 6 | byte | blue | Blue channel, 0–255 |
-| 7–9 | 3 bytes | **unknown** | Purpose not yet determined |
+| 4–5 | uint16 | red | Red channel, 0–1023 (10-bit ADC); divide by 4 for 0–255 |
+| 6–7 | uint16 | green | Green channel, 0–1023 (10-bit ADC) |
+| 8–9 | uint16 | blue | Blue channel, 0–1023 (10-bit ADC) |
 
 **Known colorId values:** 0–15 represent specific colours; exact colour-to-index mapping not yet catalogued. 255 = no detection.
 
-> **Gap**: Byte layout for reflect/RGB (offsets 3–6) is inferred, not yet empirically confirmed.
 > **Gap**: colorId-to-colour mapping table unknown.
 
 ---

@@ -57,7 +57,7 @@ let private portIndex = function
     | A -> 0 | B -> 1 | C -> 2 | D -> 3 | E -> 4 | F -> 5
 
 /// Build port-index → IoDeviceType from all port-type notification blocks.
-/// Motor block (0x0A): byte 1 = portIdx, byte 2 = pybricks device-type ID.
+/// Motor block (0x0A): byte 1 = portIdx, byte 2 = LEGO device-type ID.
 /// Sensor blocks (0x0B/0x0C/0x0D): byte 1 = portIdx; type fixed by block kind.
 let private portDeviceTypes (blocks: DeviceBlock list) : Map<int, IoDeviceType> =
     blocks

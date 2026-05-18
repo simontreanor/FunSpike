@@ -112,7 +112,7 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
     | "motor" ->
         [| {| hex=get 0;  lbl="type";     known=true  |}
            {| hex=get 1;  lbl="port";     known=true  |}
-           {| hex=get 2;  lbl="typeId";   known=true  |}  // pybricks I/O device type ID (confirmed)
+           {| hex=get 2;  lbl="typeId";   known=true  |}  // LEGO I/O device type ID (confirmed)
            {| hex=get 3;  lbl="pos lo";   known=true  |}
            {| hex=get 4;  lbl="pos hi";   known=true  |}
            {| hex=get 5;  lbl="pwr lo";   known=true  |}

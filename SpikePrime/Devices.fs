@@ -36,7 +36,7 @@ type Port = A | B | C | D | E | F
 // ---------------------------------------------------------------------------
 
 /// Identifies the physical LEGO device attached to a port.
-/// Motor subtypes come from byte 2 of the 0x0A motor block (pybricks assigned-numbers).
+/// Motor subtypes come from byte 2 of the 0x0A motor block (LEGO assigned-numbers).
 /// Sensor types are inferred from the notification block-type byte.
 type IoDeviceType =
     | MediumMotor        // 0x30 — SPIKE Prime Medium Motor    (45603)
@@ -50,7 +50,7 @@ type IoDeviceType =
     | LargeAngularMotor  // 0x4C — Technic Lg Angular Motor     (88017)
     | UnknownDevice of byte
 
-/// Parse a pybricks I/O device-type byte into an IoDeviceType.
+/// Parse a LEGO I/O device-type byte into an IoDeviceType.
 let parseIoDeviceType : byte -> IoDeviceType = function
     | 0x30uy -> MediumMotor
     | 0x31uy -> LargeMotor
