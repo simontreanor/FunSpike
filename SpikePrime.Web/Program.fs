@@ -44,9 +44,9 @@ let private portReadingDto (r: PortReading) =
         box {| ``type`` = "color"
                colorId  = int c.ColorId
                reflect  = int c.Reflect
-               red      = int c.Red
-               green    = int c.Green
-               blue     = int c.Blue |}
+               red      = int c.Red   / 4  // scale 0-1023 → 0-255
+               green    = int c.Green / 4
+               blue     = int c.Blue  / 4 |}
     | Distance d ->
         box {| ``type`` = "distance"; mm = int d |}
     | Force(pct, pressed) ->

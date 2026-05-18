@@ -159,11 +159,11 @@ type MotorReading =
 
 /// Data read from a color sensor port.
 type ColorReading =
-    { ColorId : byte   // detected color [0..15]; 255 = no detection
-      Reflect : byte   // reflected light intensity, 0–100 %
-      Red     : byte   // red channel, 0–255
-      Green   : byte   // green channel, 0–255
-      Blue    : byte } // blue channel, 0–255
+    { ColorId : byte    // detected color [0..15]; 255 = no detection
+      Reflect : byte    // reflected light intensity, 0–100 %
+      Red     : uint16  // red channel,   0–1023 (10-bit ADC)
+      Green   : uint16  // green channel, 0–1023
+      Blue    : uint16 }// blue channel,  0–1023
 
 /// Data read from a single connected port in a device-notification frame.
 type PortReading =
@@ -286,10 +286,10 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
         | d when d = DevColor && remaining >= 10 ->
             let port = toPort (int data.[offset + 1])
             let cr   = { ColorId = data.[offset + 2]
-                         Reflect = data.[offset + 3]   // byte layout needs empirical verification
-                         Red     = data.[offset + 4]
-                         Green   = data.[offset + 5]
-                         Blue    = data.[offset + 6] }
+                         Reflect = data.[offset + 3]
+                         Red     = BitConverter.ToUInt16(data, offset + 4)
+                         Green   = BitConverter.ToUInt16(data, offset + 6)
+                         Blue    = BitConverter.ToUInt16(data, offset + 8) }
             s      <- { s with Ports = (port, Color cr) :: s.Ports }
             offset <- offset + 10
 

@@ -119,16 +119,16 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
            {| hex=get 19; lbl="gZ lo";   known=true  |}
            {| hex=get 20; lbl="gZ hi";   known=true  |} |]
     | "color" ->
-        [| {| hex=get 0; lbl="type";     known=true  |}
-           {| hex=get 1; lbl="port";     known=true  |}
-           {| hex=get 2; lbl="colorId";  known=true  |}
-           {| hex=get 3; lbl="reflect?"; known=true  |}  // inferred, unconfirmed
-           {| hex=get 4; lbl="red?";     known=true  |}  // inferred, unconfirmed
-           {| hex=get 5; lbl="green?";   known=true  |}  // inferred, unconfirmed
-           {| hex=get 6; lbl="blue?";    known=true  |}  // inferred, unconfirmed
-           {| hex=get 7; lbl="???";      known=false |}  // gap
-           {| hex=get 8; lbl="???";      known=false |}  // gap
-           {| hex=get 9; lbl="???";      known=false |} |]  // gap
+        [| {| hex=get 0; lbl="type";    known=true  |}
+           {| hex=get 1; lbl="port";    known=true  |}
+           {| hex=get 2; lbl="colorId"; known=true  |}
+           {| hex=get 3; lbl="reflect"; known=true  |}
+           {| hex=get 4; lbl="R lo";    known=true  |}
+           {| hex=get 5; lbl="R hi";    known=true  |}
+           {| hex=get 6; lbl="G lo";    known=true  |}
+           {| hex=get 7; lbl="G hi";    known=true  |}
+           {| hex=get 8; lbl="B lo";    known=true  |}
+           {| hex=get 9; lbl="B hi";    known=true  |} |]
     | "motor" ->
         [| {| hex=get 0;  lbl="type";     known=true  |}
            {| hex=get 1;  lbl="port";     known=true  |}
