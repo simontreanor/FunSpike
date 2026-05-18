@@ -101,7 +101,8 @@ let private toJson (blocks: DeviceBlock list) (snap: DeviceSnapshot) : string =
                |> List.map (fun b ->
                    {| typeByte = int b.TypeByte
                       typeName = blockTypeName b.TypeByte
-                      raw      = toHex b.Raw |}) |}
+                      raw      = toHex b.Raw |})
+           hubConnected = true |}
     JsonSerializer.Serialize(dto, jsonOpts)
 
 // ── WebSocket client registry ─────────────────────────────────────────────────
@@ -117,6 +118,9 @@ let private broadcast (json: string) =
             kvp.Value.SendAsync(seg, WebSocketMessageType.Text, true, CancellationToken.None)
             |> ignore
 
+let private broadcastHubStatus (connected: bool) =
+    broadcast (JsonSerializer.Serialize({| hubConnected = connected |}, jsonOpts))
+
 // ── BLE background service ────────────────────────────────────────────────────
 
 type HubStreamService(logger: ILogger<HubStreamService>) =
@@ -131,6 +135,7 @@ type HubStreamService(logger: ILogger<HubStreamService>) =
                 do! hub.InitAsync()
                 do! startStreamingAsync hub
                 logger.LogInformation("Streaming started — broadcasting at ~10 Hz.")
+                broadcastHubStatus true
                 use _sub =
                     deviceSnapshotsWithRaw hub
                     |> Observable.subscribe (fun (blocks, snap) ->
@@ -138,7 +143,9 @@ type HubStreamService(logger: ILogger<HubStreamService>) =
                 do! Task.Delay(Timeout.Infinite, ct)
             with
             | :? OperationCanceledException -> ()
-            | ex -> logger.LogError(ex, "Hub stream error")
+            | ex ->
+                logger.LogError(ex, "Hub stream error")
+                broadcastHubStatus false
         }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

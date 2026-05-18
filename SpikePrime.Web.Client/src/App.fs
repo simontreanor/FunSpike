@@ -37,8 +37,9 @@ type ISnapshot =
 
 // ── Global reactive state ─────────────────────────────────────────────────────
 
-let snapshot, setSnapshot = createSignal<ISnapshot option>(None)
-let connected, setConnected = createSignal(false)
+let snapshot,     setSnapshot     = createSignal<ISnapshot option>(None)
+let connected,    setConnected    = createSignal(false)   // WebSocket to server
+let hubConnected, setHubConnected = createSignal(false)   // BLE hub ↔ server
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -55,8 +56,12 @@ let initWs () =
     ws?onclose   <- fun _ -> setConnected false |> ignore
     ws?onerror   <- fun _ -> setConnected false |> ignore
     ws?onmessage <- fun (e: obj) ->
-        let s : ISnapshot = jsonParse (!!e?data)
-        setSnapshot (Some s) |> ignore
+        let msg : obj = jsonParse (!!e?data)
+        // hubConnected is present in every server message (status or snapshot)
+        setHubConnected (!!msg?hubConnected : bool) |> ignore
+        // Only treat as a full snapshot when ports data is present
+        if not (isNull (!!msg?ports)) then
+            setSnapshot (Some (!!msg : ISnapshot)) |> ignore
 
 [<Emit("parseInt($0, 16)")>]
 let private hexToInt (s: string) : int = jsNative
@@ -353,9 +358,11 @@ let App () =
     div(class'="app") {
         header(class'="app-header") {
             span(class'="app-title") { "SPIKE Prime Visualiser" }
-            // Inline conditional — no `let` binding in CE body
             span(class'= (if connected() then "badge badge-ok" else "badge badge-off")) {
-                if connected() then "\u25CF Connected" else "\u25CB Disconnected"
+                if connected() then "\u25CF Server" else "\u25CB Server"
+            }
+            span(class'= (if hubConnected() then "badge badge-ok" else "badge badge-off")) {
+                if hubConnected() then "\u25CF Hub" else "\u25CB Hub"
             }
         }
         Show(when'= snapshot().IsSome,
