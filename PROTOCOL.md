@@ -107,20 +107,32 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 | Offset | Type | Field | Notes |
 |---|---|---|---|
 | 0 | byte | type | `0x01` |
-| 1 | byte | faceUp | Face-up indicator — value meaning unknown (see gaps) |
+| 1 | byte | faceUp | Physical face pointing up; maps to one of 6 orientations (see below) |
 | 2 | byte | **unknown** | Documented in some captures as "yawFace"; exact meaning unclear |
 | 3–4 | int16 | yaw | Degrees |
 | 5–6 | int16 | pitch | Degrees |
 | 7–8 | int16 | roll | Degrees |
-| 9–10 | int16 | accX | Raw accelerometer X; **unit unknown** |
-| 11–12 | int16 | accY | Raw accelerometer Y; **unit unknown** |
-| 13–14 | int16 | accZ | Raw accelerometer Z; **unit unknown** |
-| 15–20 | 6 bytes | **unknown** | Consistently present; content not reverse-engineered |
+| 9–10 | int16 | accX | Accelerometer X, cm/s² (981 = 1g ≈ 9.81 m/s²) |
+| 11–12 | int16 | accY | Accelerometer Y, cm/s² |
+| 13–14 | int16 | accZ | Accelerometer Z, cm/s² |
+| 15–16 | int16 | gyroX | Gyroscope rate X, degrees per second |
+| 17–18 | int16 | gyroY | Gyroscope rate Y, degrees per second |
+| 19–20 | int16 | gyroZ | Gyroscope rate Z, degrees per second |
 
-> **Gap**: FaceUp values — what integer maps to which physical orientation?
-> **Gap**: IMU byte [2] ("yawFace") — meaning unclear; may indicate which axis is pointing up.
-> **Gap**: IMU bytes [15–20] — possibly gyroscope rates or a second orientation representation.
-> **Gap**: AccX/Y/Z units — raw sensor counts? mg? mm/s²?
+**Orientation values (from LEGO stock firmware Python constants — BLE byte stream not yet empirically verified):**
+
+| faceUp byte | Orientation | Hub surface |
+|---|---|---|
+| 0 | Top | Side with 5×5 LED matrix |
+| 1 | Front | Side with USB port |
+| 2 | Right side | Side with ports B, D, F |
+| 3 | Bottom | Battery compartment |
+| 4 | Back | Side with speaker |
+| 5 | Left side | Side with ports A, C, E |
+
+> **Gap**: IMU byte [2] — meaning unclear; may indicate a secondary orientation or gesture state.
+> **Gap**: Orientation mapping is derived from stock firmware constants (`hub.TOP=0`, `hub.FRONT=1`, etc.);
+> exact correspondence to the BLE wire byte needs empirical confirmation.
 
 ---
 
@@ -139,7 +151,7 @@ Appears at the start of each device-notification frame. Contains port configurat
 #### 0x0A — Motor (12 bytes)
 
 ```
-[0x0A] [portId] [?] [absPos i16] [power i16] [speed i8] [position i32]
+[0x0A] [portId] [?] [position i16] [power i16] [speed i8] [relativePosition i32]
 ```
 
 | Offset | Type | Field | Notes |
@@ -147,15 +159,13 @@ Appears at the start of each device-notification frame. Contains port configurat
 | 0 | byte | type | `0x0A` |
 | 1 | byte | portId | 0 = A, 1 = B, … 5 = F |
 | 2 | byte | **unknown** | Possibly motor sub-type or mode; always observed as 0 |
-| 3–4 | int16 | absPos | Appears to be a second position value; **meaning unclear** |
-| 5–6 | int16 | power | Motor power; **unit unknown** (percent? raw PWM?) |
-| 7 | int8 | speed | Motor speed; **unit unknown** (percent? RPM?) |
-| 8–11 | int32 | position | Motor shaft position in degrees (encoder ticks, accumulates past ±360) |
+| 3–4 | int16 | position | Absolute shaft angle, [0..359]° (modulo, wraps at 360) |
+| 5–6 | int16 | power | Motor power, −100..100 % |
+| 7 | int8 | speed | Motor speed, −100..100 % |
+| 8–11 | int32 | relativePosition | Accumulating encoder count in degrees; can grow past ±360 |
 
 > **Gap**: Motor byte [2] (subType) — unknown. Possibly distinguishes large/medium/small motor variants.
-> **Gap**: absPos (bytes [3–4]) vs position (bytes [8–11]) — position accumulates freely past ±360 (odometer-style); absPos may be modulo-360 or relative to a reference point, but this is unconfirmed.
-> **Gap**: Power unit — the JSON motor command accepts −100..100 as "speed", but the readback `power` field has a different scale and its unit is unknown.
-> **Gap**: Speed unit — similarly, the readback `speed` (int8) unit is unknown.
+> **Gap**: `relativePosition` exact semantics — does it reset on connect, on a specific command, or never?
 
 ---
 
@@ -177,18 +187,24 @@ Appears at the start of each device-notification frame. Contains port configurat
 #### 0x0C — Color sensor (10 bytes)
 
 ```
-[0x0C] [portId] [colorId] [? × 7]
+[0x0C] [portId] [colorId] [reflect] [red] [green] [blue] [? ? ?]
 ```
 
 | Offset | Type | Field | Notes |
 |---|---|---|---|
 | 0 | byte | type | `0x0C` |
 | 1 | byte | portId | 0 = A … 5 = F |
-| 2 | byte | colorId | Detected color code; 255 = no color / too dark |
-| 3–9 | 7 bytes | **unknown** | May contain RGB values or reflected light intensity |
+| 2 | byte | colorId | Detected color [0..15]; 255 = no color / too dark |
+| 3 | byte | reflect | Reflected light intensity, 0–100 % |
+| 4 | byte | red | Red channel, 0–255 |
+| 5 | byte | green | Green channel, 0–255 |
+| 6 | byte | blue | Blue channel, 0–255 |
+| 7–9 | 3 bytes | **unknown** | Purpose not yet determined |
 
-> **Gap**: Full list of colorId values and their corresponding colors is unknown. 255 observed as "no detection". Other values not yet catalogued.
-> **Gap**: Bytes [3–9] — possibly raw RGB channels or ambient/reflected light levels.
+**Known colorId values:** 0–15 represent specific colours; exact colour-to-index mapping not yet catalogued. 255 = no detection.
+
+> **Gap**: Byte layout for reflect/RGB (offsets 3–6) is inferred, not yet empirically confirmed.
+> **Gap**: colorId-to-colour mapping table unknown.
 
 ---
 
@@ -202,7 +218,12 @@ Appears at the start of each device-notification frame. Contains port configurat
 |---|---|---|---|
 | 0 | byte | type | `0x0D` |
 | 1 | byte | portId | 0 = A … 5 = F |
-| 2–3 | int16 | mm | Distance in mm; **−1 = no object detected** |
+| 2–3 | int16 | mm | Distance in mm; −1 = no object detected; valid range ~40–2000 mm |
+
+Derived values (not on wire; compute from mm):
+- **cm** = mm / 10 → [4..200]
+- **in** = mm / 25.4 → [2..79]
+- **pct** = (mm − 40) / (2000 − 40) × 100 → [0..100]
 
 ---
 

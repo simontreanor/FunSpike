@@ -38,15 +38,15 @@ let main _ =
             |> Observable.subscribe (fun s ->
                 snapCount <- snapCount + 1
                 if snapCount <= 10 then
-                    printfn "    snap[%d]  bat=%s  yaw=%-5d pitch=%-5d roll=%-5d  face=%d"
+                    printfn "    snap[%d]  bat=%s  yaw=%-5d pitch=%-5d roll=%-5d  face=%A"
                         snapCount
                         (s.Battery |> Option.map (sprintf "%d%%") |> Option.defaultValue "?")
-                        s.Yaw s.Pitch s.Roll s.FaceUp
+                        s.Yaw s.Pitch s.Roll s.Orientation
                     for port, reading in s.Ports do
                         match reading with
                         | Distance d         -> printfn "        port %A  distance = %d mm" port d
-                        | Motor m            -> printfn "        port %A  motor pos=%d speed=%d power=%d" port m.Position m.Speed m.Power
-                        | Color cid          -> printfn "        port %A  color id=%d" port cid
+                        | Motor m            -> printfn "        port %A  motor pos=%d relPos=%d speed=%d%% power=%d%%" port m.Position m.RelativePosition m.Speed m.Power
+                        | Color cr           -> printfn "        port %A  color id=%d reflect=%d%% rgb=(%d,%d,%d)" port cr.ColorId cr.Reflect cr.Red cr.Green cr.Blue
                         | Force(pct,pressed) -> printfn "        port %A  force=%d%% pressed=%b" port pct pressed)
 
         do! Task.Delay(3000)

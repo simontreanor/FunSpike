@@ -17,8 +17,12 @@ open SpikePrime.Protocol
 [<Measure>] type mm
 /// Degrees — used for motor position and IMU orientation angles.
 [<Measure>] type deg
-/// Percent (0–100) — used for motor speed input.
+/// Percent (0–100) — used for motor power and speed.
 [<Measure>] type pct
+/// Degrees per second — used for gyroscope rate readings.
+[<Measure>] type dps
+/// Centimetres per second squared — used for accelerometer readings (981 = 1g ≈ 9.81 m/s²).
+[<Measure>] type cms2
 
 // ---------------------------------------------------------------------------
 // Port
@@ -42,6 +46,10 @@ let private portIndex (port: Port) =
 let inline private asDeg16 (x : int16) : int16<deg> = LanguagePrimitives.Int16WithMeasure x
 let inline private asDeg32 (x : int32) : int32<deg> = LanguagePrimitives.Int32WithMeasure x
 let inline private asMm    (x : int16) : int16<mm>  = LanguagePrimitives.Int16WithMeasure x
+let inline private asPct16 (x : int16) : int16<pct>  = LanguagePrimitives.Int16WithMeasure x
+let inline private asPct8  (x : int8)  : int8<pct>   = LanguagePrimitives.SByteWithMeasure x
+let inline private asCms2  (x : int16) : int16<cms2> = LanguagePrimitives.Int16WithMeasure x
+let inline private asDps   (x : int16) : int16<dps>  = LanguagePrimitives.Int16WithMeasure x
 
 // ---------------------------------------------------------------------------
 // Firmware / hub info
@@ -97,33 +105,53 @@ let streamingFrames (hub: Hub) : IObservable<HubFrame> =
 // Device-notification parsing
 // ---------------------------------------------------------------------------
 
-/// Motor position (degrees), speed, and power read from a port.
+/// Motor position, relative position, speed, and power read from a port.
 type MotorReading =
-    { Position : int32<deg>
-      Speed    : int8    // raw unit unclear
-      Power    : int16 } // raw unit unclear
+    { Position         : int16<deg>  // absolute shaft angle, [0..359]
+      RelativePosition : int32<deg>  // accumulating encoder count; can be any signed value
+      Speed            : int8<pct>   // motor speed, −100..100 %
+      Power            : int16<pct> }// motor power, −100..100 %
+
+/// Data read from a color sensor port.
+type ColorReading =
+    { ColorId : byte   // detected color [0..15]; 255 = no detection
+      Reflect : byte   // reflected light intensity, 0–100 %
+      Red     : byte   // red channel, 0–255
+      Green   : byte   // green channel, 0–255
+      Blue    : byte } // blue channel, 0–255
 
 /// Data read from a single connected port in a device-notification frame.
 type PortReading =
     | Motor    of MotorReading
     | Distance of int16<mm>
-    | Color    of colorId: byte
+    | Color    of ColorReading
     | Force    of pct: byte * pressed: bool
+
+/// Which face of the hub is currently pointing upward.
+/// Values match the stock LEGO firmware Python constants (TOP=0, FRONT=1, RIGHT=2, BOTTOM=3, BACK=4, LEFT=5).
+/// Exact mapping against the BLE byte stream still needs empirical confirmation.
+type HubOrientation = Top | Front | RightSide | Bottom | Back | LeftSide
 
 /// Parsed snapshot from one MSG_DEVICE_NOTIFICATION (0x3C) frame.
 type DeviceSnapshot =
-    { Battery : byte option
-      Ports   : (Port * PortReading) list
-      Yaw     : int16<deg>
-      Pitch   : int16<deg>
-      Roll    : int16<deg>
-      AccX    : int16
-      AccY    : int16
-      AccZ    : int16
-      FaceUp  : byte }
+    { Battery     : byte option
+      Ports       : (Port * PortReading) list
+      Orientation : HubOrientation
+      Yaw         : int16<deg>
+      Pitch       : int16<deg>
+      Roll        : int16<deg>
+      GyroX       : int16<dps>  // gyroscope rate X, degrees per second
+      GyroY       : int16<dps>  // gyroscope rate Y, degrees per second
+      GyroZ       : int16<dps>  // gyroscope rate Z, degrees per second
+      AccX        : int16<cms2>  // accelerometer X, cm/s² (981 = 1g)
+      AccY        : int16<cms2>  // accelerometer Y, cm/s²
+      AccZ        : int16<cms2> }// accelerometer Z, cm/s²
 
 let private emptySnapshot =
-    { Battery=None; Ports=[]; Yaw=0s<deg>; Pitch=0s<deg>; Roll=0s<deg>; AccX=0s; AccY=0s; AccZ=0s; FaceUp=0uy }
+    { Battery=None; Ports=[]; Orientation=Top
+      Yaw=0s<deg>; Pitch=0s<deg>; Roll=0s<deg>
+      GyroX=0s<dps>; GyroY=0s<dps>; GyroZ=0s<dps>
+      AccX=0s<cms2>; AccY=0s<cms2>; AccZ=0s<cms2> }
 
 // Device type codes in the notification payload.
 [<Literal>]
@@ -146,6 +174,13 @@ let private rawBytesOf (f: HubFrame) : byte[] =
        yield! f.Data
        yield FrameEnd |]
 
+/// Convert the raw faceUp byte from the IMU block to a HubOrientation.
+/// Mapping matches the LEGO firmware hub constants: TOP=0, FRONT=1, RIGHT=2, BOTTOM=3, BACK=4, LEFT=5.
+let private toOrientation = function
+    | 0uy -> Top | 1uy -> Front | 2uy -> RightSide
+    | 3uy -> Bottom | 4uy -> Back | 5uy -> LeftSide
+    | _   -> Top  // fallback for unseen values
+
 /// Parse the device-data bytes inside a device-notification logical payload.
 let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapshot =
     let mutable s      = snap
@@ -167,25 +202,32 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
             let yaw   = BitConverter.ToInt16(data, offset + 3)  |> asDeg16
             let pitch = BitConverter.ToInt16(data, offset + 5)  |> asDeg16
             let roll  = BitConverter.ToInt16(data, offset + 7)  |> asDeg16
-            let accX  = BitConverter.ToInt16(data, offset + 9)
-            let accY  = BitConverter.ToInt16(data, offset + 11)
-            let accZ  = BitConverter.ToInt16(data, offset + 13)
+            let accX  = BitConverter.ToInt16(data, offset + 9)  |> asCms2
+            let accY  = BitConverter.ToInt16(data, offset + 11) |> asCms2
+            let accZ  = BitConverter.ToInt16(data, offset + 13) |> asCms2
+            let gyroX = BitConverter.ToInt16(data, offset + 15) |> asDps
+            let gyroY = BitConverter.ToInt16(data, offset + 17) |> asDps
+            let gyroZ = BitConverter.ToInt16(data, offset + 19) |> asDps
             s <- { s with
-                     FaceUp = data.[offset+1]
+                     Orientation = toOrientation data.[offset+1]
                      Yaw    = yaw
                      Pitch  = pitch
                      Roll   = roll
                      AccX   = accX
                      AccY   = accY
-                     AccZ   = accZ }
+                     AccZ   = accZ
+                     GyroX  = gyroX
+                     GyroY  = gyroY
+                     GyroZ  = gyroZ }
             offset <- offset + 21
 
         | d when d = DevMotor && remaining >= 12 ->
             let port   = toPort (int data.[offset + 1])
-            let power  = BitConverter.ToInt16(data, offset + 5)
-            let speed  = int8 data.[offset + 7]
-            let pos    = BitConverter.ToInt32(data, offset + 8) |> asDeg32
-            s      <- { s with Ports = (port, Motor { Position = pos; Speed = speed; Power = power }) :: s.Ports }
+            let pos    = BitConverter.ToInt16(data, offset + 3) |> asDeg16
+            let power  = BitConverter.ToInt16(data, offset + 5) |> asPct16
+            let speed  = int8 data.[offset + 7] |> asPct8
+            let relPos = BitConverter.ToInt32(data, offset + 8) |> asDeg32
+            s      <- { s with Ports = (port, Motor { Position = pos; RelativePosition = relPos; Speed = speed; Power = power }) :: s.Ports }
             offset <- offset + 12
 
         | d when d = DevForce && remaining >= 4 ->
@@ -197,7 +239,12 @@ let private parseDeviceData (data: byte[]) (snap: DeviceSnapshot) : DeviceSnapsh
 
         | d when d = DevColor && remaining >= 10 ->
             let port = toPort (int data.[offset + 1])
-            s      <- { s with Ports = (port, Color(data.[offset + 2])) :: s.Ports }
+            let cr   = { ColorId = data.[offset + 2]
+                         Reflect = data.[offset + 3]   // byte layout needs empirical verification
+                         Red     = data.[offset + 4]
+                         Green   = data.[offset + 5]
+                         Blue    = data.[offset + 6] }
+            s      <- { s with Ports = (port, Color cr) :: s.Ports }
             offset <- offset + 10
 
         | d when d = DevDistance && remaining >= 4 ->
