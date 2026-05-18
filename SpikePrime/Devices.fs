@@ -175,10 +175,11 @@ let private rawBytesOf (f: HubFrame) : byte[] =
        yield FrameEnd |]
 
 /// Convert the raw faceUp byte from the IMU block to a HubOrientation.
-/// Mapping matches the LEGO firmware hub constants: TOP=0, FRONT=1, RIGHT=2, BOTTOM=3, BACK=4, LEFT=5.
+/// Empirically verified: TOP=0, BACK=1, RIGHT=2, BOTTOM=3, FRONT=4, LEFT=5
+/// (Note: LEGO firmware doc says FRONT=1/BACK=4 but physical testing shows these are swapped.)
 let private toOrientation = function
-    | 0uy -> Top | 1uy -> Front | 2uy -> RightSide
-    | 3uy -> Bottom | 4uy -> Back | 5uy -> LeftSide
+    | 0uy -> Top | 1uy -> Back | 2uy -> RightSide
+    | 3uy -> Bottom | 4uy -> Front | 5uy -> LeftSide
     | _   -> Top  // fallback for unseen values
 
 /// Parse the device-data bytes inside a device-notification logical payload.
