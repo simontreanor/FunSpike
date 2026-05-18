@@ -227,6 +227,7 @@ let ImuPanel (snap: ISnapshot) =
                 }
             }
         }
+        br()
         table(class'="imu-table imu-table-gyro") {
             thead() {
                 tr() {
