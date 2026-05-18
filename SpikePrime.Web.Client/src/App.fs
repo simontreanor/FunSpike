@@ -278,7 +278,8 @@ let ReadingView (r: IReading) =
             div(style= $"background:rgb({!!r?red},{!!r?green},{!!r?blue});width:1.2rem;height:1.2rem;border-radius:3px;margin-top:4px") {}
         }
     | "distance" ->
-        Fragment() { div() { $"{!!r?mm} mm" } }
+        let mm = !!r?mm : int
+        Fragment() { div() { if mm = -1 then "n/a" else $"{mm} mm" } }
     | "force" ->
         Fragment() {
             div() { $"{!!r?pct}%%" }
