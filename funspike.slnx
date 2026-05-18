@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SpikePrime.Demo/SpikePrime.Demo.fsproj" />
+  <Project Path="SpikePrime/SpikePrime.fsproj" />
+</Solution>
