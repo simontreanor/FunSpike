@@ -234,17 +234,17 @@ let ImuPanel (snap: ISnapshot) =
             }
             div(class'="imu-row") {
                 span(class'="lbl") { "Acc X" }
-                span(class'="val acc") { string snap.accX }
+                span(class'="val acc") { $"{snap.accX} cm/s\u00B2" }
                 span(class'="lbl") { "Acc Y" }
-                span(class'="val acc") { string snap.accY }
+                span(class'="val acc") { $"{snap.accY} cm/s\u00B2" }
                 span(class'="lbl") { "Acc Z" }
                 span(class'="val acc") { $"{snap.accZ} cm/s\u00B2" }
             }
             div(class'="imu-row") {
                 span(class'="lbl") { "Gyro X" }
-                span(class'="val") { string snap.gyroX }
+                span(class'="val") { $"{snap.gyroX} \u00B0/s" }
                 span(class'="lbl") { "Gyro Y" }
-                span(class'="val") { string snap.gyroY }
+                span(class'="val") { $"{snap.gyroY} \u00B0/s" }
                 span(class'="lbl") { "Gyro Z" }
                 span(class'="val") { $"{snap.gyroZ} \u00B0/s" }
             }
