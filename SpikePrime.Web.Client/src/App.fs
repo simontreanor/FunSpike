@@ -13,6 +13,7 @@ type IReading =
 type IPort =
     abstract port: string
     abstract reading: IReading
+    abstract deviceType: string  // human-readable device name resolved by server (Devices.ioDeviceTypeName)
 
 type IBlock =
     abstract typeByte: int
@@ -56,6 +57,27 @@ let initWs () =
     ws?onmessage <- fun (e: obj) ->
         let s : ISnapshot = jsonParse (!!e?data)
         setSnapshot (Some s) |> ignore
+
+[<Emit("parseInt($0, 16)")>]
+let private hexToInt (s: string) : int = jsNative
+
+/// Short label for the config block annotation — resolves hex string → pybricks name.
+let private configByteLabel (portLetter: string) (hexStr: string) =
+    let id = hexToInt hexStr
+    let name =
+        match id with
+        | 0    -> "empty"
+        | 0x30 -> "MedMtr"
+        | 0x31 -> "LgMtr"
+        | 0x3D -> "Color"
+        | 0x3E -> "Dist"
+        | 0x3F -> "Force"
+        | 0x40 -> "Matrix"
+        | 0x41 -> "SAngMtr"
+        | 0x4B -> "MAngMtr"
+        | 0x4C -> "LAngMtr"
+        | _    -> "???"
+    $"{portLetter}:{name}?"
 
 // ── Byte annotation ───────────────────────────────────────────────────────────
 // Returns {| hex; lbl; known |} for each byte — highlights gaps in the raw dump.
@@ -101,7 +123,7 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
     | "motor" ->
         [| {| hex=get 0;  lbl="type";     known=true  |}
            {| hex=get 1;  lbl="port";     known=true  |}
-           {| hex=get 2;  lbl="subTyp?";  known=false |}  // gap: always 0 so far
+           {| hex=get 2;  lbl="typeId";   known=true  |}  // pybricks I/O device type ID (confirmed)
            {| hex=get 3;  lbl="pos lo";   known=true  |}
            {| hex=get 4;  lbl="pos hi";   known=true  |}
            {| hex=get 5;  lbl="pwr lo";   known=true  |}
@@ -124,6 +146,24 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
     | "battery" ->
         [| {| hex=get 0; lbl="type"; known=true |}
            {| hex=get 1; lbl="bat";  known=true |} |]
+    | "config" ->
+        // 0x02 block: [type][header?] then 6 ports × 4 bytes (hypothesis).
+        // First byte of each 4-byte entry = suspected pybricks I/O device type ID.
+        let ports = [| "A"; "B"; "C"; "D"; "E"; "F" |]
+        let portEntry p off =
+            [| {| hex=get off;       lbl=configByteLabel p (get off); known=false |}
+               {| hex=get (off+1);   lbl=p + ":???";                  known=false |}
+               {| hex=get (off+2);   lbl=p + ":???";                  known=false |}
+               {| hex=get (off+3);   lbl=p + ":???";                  known=false |} |]
+        Array.concat
+            [| [| {| hex=get 0; lbl="type"; known=true  |}
+                  {| hex=get 1; lbl="hdr?"; known=false |} |]
+               portEntry ports.[0] 2
+               portEntry ports.[1] 6
+               portEntry ports.[2] 10
+               portEntry ports.[3] 14
+               portEntry ports.[4] 18
+               portEntry ports.[5] 22 |]
     | _ ->
         let lbl i = if i = 0 then "type" else "?"
         hexBytes |> Array.mapi (fun i b -> {| hex=b; lbl=lbl i; known=(i=0) |})
@@ -234,6 +274,7 @@ let ReadingView (r: IReading) =
 let PortCard (port: IPort) =
     div(class'="port-card") {
         div(class'="port-label") { port.port }
+        div(class'="port-device") { port.deviceType }
         div(class'="port-reading") {
             ReadingView port.reading
         }

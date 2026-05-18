@@ -165,7 +165,14 @@ body {
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent);
+    margin-bottom: 0.1rem;
+}
+
+.port-device {
+    font-size: 0.68rem;
+    color: var(--muted);
     margin-bottom: 0.35rem;
+    white-space: nowrap;
 }
 
 .port-reading {

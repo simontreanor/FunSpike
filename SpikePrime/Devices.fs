@@ -31,6 +31,51 @@ open SpikePrime.Protocol
 /// A physical port on the SPIKE Prime hub (A–F).
 type Port = A | B | C | D | E | F
 
+// ---------------------------------------------------------------------------
+// I/O device type
+// ---------------------------------------------------------------------------
+
+/// Identifies the physical LEGO device attached to a port.
+/// Motor subtypes come from byte 2 of the 0x0A motor block (pybricks assigned-numbers).
+/// Sensor types are inferred from the notification block-type byte.
+type IoDeviceType =
+    | MediumMotor        // 0x30 — SPIKE Prime Medium Motor    (45603)
+    | LargeMotor         // 0x31 — SPIKE Prime Large Motor     (45602)
+    | ColourSensor       // 0x3D — Technic Colour Sensor        (45605)
+    | DistanceSensor     // 0x3E — Technic Distance Sensor      (45604)
+    | ForceSensor        // 0x3F — Technic Force Sensor         (45606)
+    | ColourMatrix       // 0x40 — Technic 3×3 Colour Matrix    (45608)
+    | SmallAngularMotor  // 0x41 — Technic Small Angular Motor  (45607)
+    | MedAngularMotor    // 0x4B — Technic Med Angular Motor    (88018)
+    | LargeAngularMotor  // 0x4C — Technic Lg Angular Motor     (88017)
+    | UnknownDevice of byte
+
+/// Parse a pybricks I/O device-type byte into an IoDeviceType.
+let parseIoDeviceType : byte -> IoDeviceType = function
+    | 0x30uy -> MediumMotor
+    | 0x31uy -> LargeMotor
+    | 0x3Duy -> ColourSensor
+    | 0x3Euy -> DistanceSensor
+    | 0x3Fuy -> ForceSensor
+    | 0x40uy -> ColourMatrix
+    | 0x41uy -> SmallAngularMotor
+    | 0x4Buy -> MedAngularMotor
+    | 0x4Cuy -> LargeAngularMotor
+    | b      -> UnknownDevice b
+
+/// Human-readable display name (includes LEGO set number) for an IoDeviceType.
+let ioDeviceTypeName = function
+    | MediumMotor        -> "Medium Motor \u00B7 45603"
+    | LargeMotor         -> "Large Motor \u00B7 45602"
+    | ColourSensor       -> "Colour Sensor \u00B7 45605"
+    | DistanceSensor     -> "Distance Sensor \u00B7 45604"
+    | ForceSensor        -> "Force Sensor \u00B7 45606"
+    | ColourMatrix       -> "3\u00D73 Matrix \u00B7 45608"
+    | SmallAngularMotor  -> "Small Angular Motor \u00B7 45607"
+    | MedAngularMotor    -> "Med Angular Motor \u00B7 88018"
+    | LargeAngularMotor  -> "Lg Angular Motor \u00B7 88017"
+    | UnknownDevice b    -> sprintf "Unknown (0x%02X)" b
+
 /// Convert a wire port index (0–5) to a Port value.
 let private toPort = function
     | 0 -> Port.A | 1 -> Port.B | 2 -> Port.C

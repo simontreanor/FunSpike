@@ -52,7 +52,26 @@ let private portReadingDto (r: PortReading) =
     | Force(pct, pressed) ->
         box {| ``type`` = "force"; pct = int pct; pressed = pressed |}
 
+/// Index of each port (A=0 … F=5).
+let private portIndex = function
+    | A -> 0 | B -> 1 | C -> 2 | D -> 3 | E -> 4 | F -> 5
+
+/// Build port-index → IoDeviceType from all port-type notification blocks.
+/// Motor block (0x0A): byte 1 = portIdx, byte 2 = pybricks device-type ID.
+/// Sensor blocks (0x0B/0x0C/0x0D): byte 1 = portIdx; type fixed by block kind.
+let private portDeviceTypes (blocks: DeviceBlock list) : Map<int, IoDeviceType> =
+    blocks
+    |> List.choose (fun b ->
+        match b.TypeByte with
+        | 0x0Auy when b.Raw.Length >= 3 -> Some (int b.Raw.[1], parseIoDeviceType b.Raw.[2])
+        | 0x0Buy when b.Raw.Length >= 2 -> Some (int b.Raw.[1], ForceSensor)
+        | 0x0Cuy when b.Raw.Length >= 2 -> Some (int b.Raw.[1], ColourSensor)
+        | 0x0Duy when b.Raw.Length >= 2 -> Some (int b.Raw.[1], DistanceSensor)
+        | _ -> None)
+    |> Map.ofList
+
 let private toJson (blocks: DeviceBlock list) (snap: DeviceSnapshot) : string =
+    let deviceTypes = portDeviceTypes blocks
     let dto =
         {| battery     = snap.Battery |> Option.map int |> Option.defaultValue -1
            orientation = string snap.Orientation
@@ -67,11 +86,18 @@ let private toJson (blocks: DeviceBlock list) (snap: DeviceSnapshot) : string =
            accZ        = int snap.AccZ
            ports =
                snap.Ports
+               |> List.sortBy (fun (p, _) -> portIndex p)
                |> List.map (fun (p, r) ->
-                   {| port = string p; reading = portReadingDto r |})
+                   let deviceType =
+                       deviceTypes
+                       |> Map.tryFind (portIndex p)
+                       |> Option.map ioDeviceTypeName
+                       |> Option.defaultValue ""
+                   {| port       = string p
+                      reading    = portReadingDto r
+                      deviceType = deviceType |})
            blocks =
-               blocks
-               |> List.filter (fun b -> b.TypeByte <> 0x02uy) // skip config block (26 opaque bytes)
+               blocks  // config block included — visible in raw bytes panel
                |> List.map (fun b ->
                    {| typeByte = int b.TypeByte
                       typeName = blockTypeName b.TypeByte
