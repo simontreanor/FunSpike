@@ -108,7 +108,7 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 |---|---|---|---|
 | 0 | byte | type | `0x01` |
 | 1 | byte | faceUp | Physical face pointing up; maps to one of 6 orientations (see below) |
-| 2 | byte | **unknown** | Documented in some captures as "yawFace"; exact meaning unclear |
+| 2 | byte | **yawRef** (inferred) | Always observed as `0x00`. Hypothesis: the face designation stored when `hub.imu.reset_heading()` is called — records which face was "forward" at the moment heading was zeroed, so the hub can track relative yaw from that reference. Defaults to `0` at boot; only changes if reset_heading is called, which this codebase never does. |
 | 3–4 | int16 | yaw | Degrees |
 | 5–6 | int16 | pitch | Degrees |
 | 7–8 | int16 | roll | Degrees |
@@ -130,7 +130,7 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 | 4 | Back | Side with speaker |
 | 5 | Left side | Side with ports A, C, E |
 
-> **Gap**: IMU byte [2] — meaning unclear; may indicate a secondary orientation or gesture state.
+> **Gap**: IMU byte [2] — empirically observed as `0x00` in all orientations and during continuous rotation. Hypothesis: face index stored when `hub.imu.reset_heading()` is called, recording which face was "forward" at the moment heading was zeroed (enables precise relative turns, e.g. rotate exactly 90°). Defaults to `0` at boot; never changes because this codebase does not call reset_heading. Name "yawRef" is inferred; not confirmed from firmware source.
 > **Gap**: Orientation mapping is derived from stock firmware constants (`hub.TOP=0`, `hub.FRONT=1`, etc.);
 > exact correspondence to the BLE wire byte needs empirical confirmation.
 

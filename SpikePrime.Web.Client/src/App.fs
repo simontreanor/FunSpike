@@ -99,7 +99,7 @@ let private annotate (typeName: string) (hexBytes: string[]) : ByteCell[] =
     | "imu" ->
         [| {| hex=get 0;  lbl="type";    known=true  |}
            {| hex=get 1;  lbl="faceUp";  known=true  |}
-           {| hex=get 2;  lbl="???";     known=false |}  // gap: unknown byte
+           {| hex=get 2;  lbl="yawRef?"; known=false |}  // always 0x00; set by reset_heading(); this codebase never calls it
            {| hex=get 3;  lbl="yaw lo";  known=true  |}
            {| hex=get 4;  lbl="yaw hi";  known=true  |}
            {| hex=get 5;  lbl="pit lo";  known=true  |}
