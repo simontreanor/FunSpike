@@ -206,30 +206,55 @@ let OrientationGrid (orientation: string) =
 let ImuPanel (snap: ISnapshot) =
     div(class'="panel imu-panel") {
         h3() { "IMU" }
-        div(class'="imu-grid") {
-            div(class'="imu-row") {
-                span(class'="lbl") { "Yaw" }
-                span(class'="val") { $"{snap.yaw}°" }
-                span(class'="lbl") { "Pitch" }
-                span(class'="val") { $"{snap.pitch}°" }
-                span(class'="lbl") { "Roll" }
-                span(class'="val") { $"{snap.roll}°" }
+        table(class'="imu-table") {
+            thead() {
+                tr() {
+                    th() {}
+                    th() { "Yaw" }
+                    th() { "Pitch" }
+                    th() { "Roll" }
+                }
             }
-            div(class'="imu-row") {
-                span(class'="lbl") { "Acc X" }
-                span(class'="val acc") { $"{snap.accX} cm/s\u00B2" }
-                span(class'="lbl") { "Acc Y" }
-                span(class'="val acc") { $"{snap.accY} cm/s\u00B2" }
-                span(class'="lbl") { "Acc Z" }
-                span(class'="val acc") { $"{snap.accZ} cm/s\u00B2" }
+            tbody() {
+                tr() {
+                    td(class'="imu-lbl") {
+                        yield "Angle "
+                        yield span(class'="imu-unit") { "(\u00B0)" }
+                    }
+                    td() { string snap.yaw }
+                    td() { string snap.pitch }
+                    td() { string snap.roll }
+                }
             }
-            div(class'="imu-row") {
-                span(class'="lbl") { "Gyro X" }
-                span(class'="val") { $"{snap.gyroX} \u00B0/s" }
-                span(class'="lbl") { "Gyro Y" }
-                span(class'="val") { $"{snap.gyroY} \u00B0/s" }
-                span(class'="lbl") { "Gyro Z" }
-                span(class'="val") { $"{snap.gyroZ} \u00B0/s" }
+        }
+        table(class'="imu-table imu-table-gyro") {
+            thead() {
+                tr() {
+                    th() {}
+                    th() { "X" }
+                    th() { "Y" }
+                    th() { "Z" }
+                }
+            }
+            tbody() {
+                tr() {
+                    td(class'="imu-lbl") {
+                        yield "Acc "
+                        yield span(class'="imu-unit") { "(cm/s\u00B2)" }
+                    }
+                    td(class'="imu-acc") { string snap.accX }
+                    td(class'="imu-acc") { string snap.accY }
+                    td(class'="imu-acc") { string snap.accZ }
+                }
+                tr() {
+                    td(class'="imu-lbl") {
+                        yield "Gyro "
+                        yield span(class'="imu-unit") { "(\u00B0/s)" }
+                    }
+                    td() { string snap.gyroX }
+                    td() { string snap.gyroY }
+                    td() { string snap.gyroZ }
+                }
             }
         }
     }
@@ -307,12 +332,18 @@ let SnapshotView () =
                 h3() { "Orientation" }
                 OrientationGrid snap.orientation
                 p(class'="orient-desc") { faceDesc snap.orientation }
-                p(class'="battery") {
-                    if snap.battery >= 0 then $"\U0001F50B {snap.battery}%%"
-                    else "\U0001F50B \u2014"
-                }
-                h3(style="margin-top:0.75rem") { "Matrix Display" }
+            }
+            div(class'="panel matrix-panel") {
+                h3() { "Display" }
                 MatrixDisplay snap.matrix
+            }
+            div(class'="panel battery-panel") {
+                h3() { "Battery" }
+                p(class'="battery-emoji") { "\U0001F50B" }
+                p(class'="battery-pct") {
+                    if snap.battery >= 0 then $"{snap.battery}%%"
+                    else "\u2014"
+                }
             }
             ImuPanel snap
         }

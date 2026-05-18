@@ -72,8 +72,10 @@ body {
     gap: 0;
 }
 
-.orient-panel { min-width: 220px; }
-.imu-panel    { flex: 1; min-width: 280px; }
+.orient-panel  { min-width: 185px; }
+.matrix-panel  { min-width: 130px; }
+.battery-panel { min-width: 110px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.imu-panel     { flex: 1; min-width: 220px; }
 
 /* ── Orientation cross ────────────────────────────────────────────────────── */
 .orient-cross {
@@ -116,35 +118,61 @@ body {
     margin-top: 0.25rem;
 }
 
-.battery {
-    font-size: 0.85rem;
-    margin-top: 0.4rem;
+.battery-emoji {
+    font-size: 1.6rem;
+    line-height: 1;
+    margin-bottom: 0.25rem;
 }
 
-/* ── IMU grid ─────────────────────────────────────────────────────────────── */
-.imu-grid  { display: flex; flex-direction: column; gap: 0.5rem; }
-
-.imu-row {
-    display: grid;
-    grid-template-columns: 4rem 6rem 4rem 6rem 4rem 6rem;
-    align-items: center;
-    gap: 0.25rem;
+.battery-pct {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--green);
 }
 
-.lbl {
+/* ── IMU table ────────────────────────────────────────────────────────────── */
+.imu-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.92rem;
+}
+
+.imu-table th {
     font-size: 0.72rem;
+    font-weight: 600;
     color: var(--muted);
     text-align: right;
-    padding-right: 0.25rem;
+    padding: 0 0.9rem 0.4rem 0;
+    white-space: nowrap;
 }
 
-.val {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
+.imu-table td {
+    text-align: right;
+    padding: 0.12rem 0.9rem 0.12rem 0;
     color: var(--hex-known);
 }
 
-.val.acc { color: var(--yellow); }
+.imu-lbl {
+    text-align: left !important;
+    color: var(--muted) !important;
+    font-family: system-ui, sans-serif;
+    font-size: 0.78rem;
+    padding-right: 0.5rem !important;
+}
+
+.imu-table th:first-child { text-align: left; padding-right: 0.5rem; }
+
+.imu-acc { color: var(--yellow); }
+
+.imu-unit {
+    color: var(--yellow);
+    font-family: system-ui, sans-serif;
+    font-size: 0.68rem;
+}
+
+.imu-table-gyro { margin-top: 0.6rem; }
 
 /* ── Ports row ────────────────────────────────────────────────────────────── */
 .ports-row {
