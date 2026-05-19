@@ -70,10 +70,6 @@ type Hub(conn: HubConnection) =
                 | _       -> ()) |> ignore
             return! tcs.Task
         }
-    /// Send a pre-packed COBS+XOR message to the hub without awaiting a response.
-    /// Use this for fire-and-forget commands such as motor control.
-    member _.SendMessageAsync(packedBytes: byte[]) : Task =
-        conn.WriteAsync(packedBytes)
     member _.Dispose() =
         subscription.Dispose()
         for kvp in pending do

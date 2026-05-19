@@ -82,12 +82,6 @@ let private toPort = function
     | 3 -> Port.D | 4 -> Port.E | 5 -> Port.F
     | n -> failwith $"Unexpected port index: {n}"
 
-/// Convert a Port value to its wire index (0–5).
-let private portIndex (port: Port) =
-    match port with
-    | Port.A -> 0 | Port.B -> 1 | Port.C -> 2
-    | Port.D -> 3 | Port.E -> 4 | Port.F -> 5
-
 let inline private asDeg16 (x : int16) : int16<deg> = LanguagePrimitives.Int16WithMeasure x
 let inline private asDeg32 (x : int32) : int32<deg> = LanguagePrimitives.Int32WithMeasure x
 let inline private asMm    (x : int16) : int16<mm>  = LanguagePrimitives.Int16WithMeasure x
@@ -383,20 +377,3 @@ let deviceSnapshotsWithRaw (hub: Hub) : IObservable<DeviceBlock list * DeviceSna
                     let blocks     = extractBlocks deviceData
                     let snap       = parseDeviceData deviceData emptySnapshot
                     Some (blocks, snap))
-
-// ---------------------------------------------------------------------------
-// Motor control  (MSG_TUNNEL JSON commands, COBS+XOR encoded)
-// ---------------------------------------------------------------------------
-
-/// Start a motor on the given Port at speed (–100 to 100 pct).
-let motorStartAsync (port: Port) (speed: int<pct>) (hub: Hub) : Task =
-    let p    = portIndex port
-    let s    = max -100<pct> (min 100<pct> speed)
-    let json = sprintf """{"m":"motor","p":{"port":%d,"speed":%d}}""" p (int s)
-    hub.SendMessageAsync(encodeTunnelCommand json)
-
-/// Coast-stop a motor on the given Port.
-let motorStopAsync (port: Port) (hub: Hub) : Task =
-    let p    = portIndex port
-    let json = sprintf """{"m":"motor","p":{"port":%d,"speed":0,"end_state":1}}""" p
-    hub.SendMessageAsync(encodeTunnelCommand json)

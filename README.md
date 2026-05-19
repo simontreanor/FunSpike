@@ -20,19 +20,26 @@ The hub is identified during BLE scanning by the presence of this service UUID i
 - .NET SDK 10.0.300+
 - Bluetooth LE adapter
 - LEGO SPIKE Prime hub (45678) with stock firmware, powered on and in range
+- Node.js (for the web visualiser only)
 
 ## Project structure
 
 ```
 funspike/
 ├── funspike.slnx
-├── SpikePrime/          # Library (net10.0-windows10.0.26100.0)
-│   ├── Protocol.fs      # COBS+XOR codec, HubFrame, FrameDecoder, packMessage, encodeTunnelCommand
-│   ├── Transport.fs     # BLE scanner, HubConnection, scanAndConnectAsync
-│   ├── Hub.fs           # Hub type, connectFirstAsync, InitAsync, SendRequestAsync, Notifications
-│   └── Devices.fs       # High-level typed API (see below)
-└── SpikePrime.Demo/     # Console demo (net10.0-windows10.0.26100.0)
-    └── Program.fs       # Connect, init, firmware query, sensor stream
+├── SpikePrime/               # Library (net10.0-windows10.0.26100.0)
+│   ├── Protocol.fs           # COBS+XOR codec, HubFrame, FrameDecoder, packMessage, encodeTunnelCommand
+│   ├── Transport.fs          # BLE scanner, HubConnection, scanAndConnectAsync
+│   ├── Hub.fs                # Hub type, connectFirstAsync, InitAsync, SendRequestAsync, SendMessageAsync, Notifications
+│   └── Devices.fs            # High-level typed API (see below)
+├── SpikePrime.Demo/          # Console demo (net10.0-windows10.0.26100.0)
+│   └── Program.fs            # Connect, init, firmware query, sensor stream
+├── SpikePrime.Web/           # ASP.NET Core WebSocket server (net10.0-windows10.0.26100.0)
+│   └── Program.fs            # BLE background service + WebSocket broadcast → browser
+└── SpikePrime.Web.Client/    # Fable/SolidJS browser visualiser
+    └── src/
+        ├── App.fs            # SolidJS components: orientation, display, IMU, ports, raw byte dump
+        └── Program.fs        # App entry point
 ```
 
 ## Library API (`SpikePrime`)
@@ -63,38 +70,83 @@ funspike/
 | `startStreamingAsync hub` | Request continuous ~10 Hz device notifications |
 | `streamingFrames hub` | `IObservable<HubFrame>` of raw streaming frames |
 | `deviceSnapshots hub` | `IObservable<DeviceSnapshot>` — parsed sensor state at each frame |
+| `deviceSnapshotsWithRaw hub` | `IObservable<DeviceBlock list * DeviceSnapshot>` — parsed snapshot paired with raw block bytes (used by the visualiser) |
 | `tryParseDeviceSnapshot frame` | Parse a single `HubFrame` → `DeviceSnapshot option` |
-| `motorStartAsync port speed hub` | Start motor on port `'A'`–`'F'` at speed −100..100 |
-| `motorStopAsync port hub` | Coast-stop a motor |
 
-**`DeviceSnapshot`** fields: `Battery : byte option`, `Yaw / Pitch / Roll : int16`, `AccX / AccY / AccZ : int16`, `FaceUp : byte`, `Ports : (int * PortReading) list`
+**`IoDeviceType`** — identifies the physical device on a port:
+`MediumMotor` · `LargeMotor` · `ColourSensor` · `DistanceSensor` · `ForceSensor` · `ColourMatrix` · `SmallAngularMotor` · `MedAngularMotor` · `LargeAngularMotor` · `UnknownDevice of byte`
 
-**`PortReading`** cases: `Motor(position, speed, power)` · `Distance(mm)` · `Color(colorId)` · `Force(pct, pressed)`
+**`DeviceSnapshot`** fields:
 
-## Running the demo
+| Field | Type | Description |
+|---|---|---|
+| `Battery` | `byte option` | Battery percentage |
+| `Orientation` | `HubOrientation` | Which face is up: `Top \| Front \| Back \| LeftSide \| RightSide \| Bottom` |
+| `Yaw` / `Pitch` / `Roll` | `int16<deg>` | IMU orientation angles |
+| `GyroX` / `GyroY` / `GyroZ` | `int16<dps>` | Gyroscope rate (degrees/second) |
+| `AccX` / `AccY` / `AccZ` | `int16<cms2>` | Accelerometer (cm/s²; 981 ≈ 1g) |
+| `MatrixDisplay` | `byte[] option` | 25 pixel brightness values (0–100), row-major; absent until first frame |
+| `Ports` | `(Port * PortReading) list` | Per-port readings |
+
+**`PortReading`** cases: `Motor of MotorReading` (position, relativePosition, speed, power) · `Distance of int16<mm>` · `Color of ColorReading` (colorId, reflect, red, green, blue) · `Force(pct, pressed)`
+
+## Web Visualiser
+
+A browser-based live dashboard that streams sensor data from the hub and displays it in real time.
+
+![SPIKE Prime Visualiser](SPIKE%20Prime%20Visualiser.png)
+
+The dashboard shows:
+- **Orientation** — which face of the hub is up, displayed as an unfolded cube cross
+- **Display** — live 5×5 LED matrix brightness grid
+- **Battery** — percentage from the hub
+- **IMU** — yaw/pitch/roll angles and X/Y/Z accelerometer and gyroscope readings
+- **Ports** — live reading per connected device (motor, colour sensor, distance sensor, force sensor)
+- **Raw Device Blocks** — annotated hex dump of each block in the streaming frame, with unknown bytes highlighted in red
+
+![Raw Device Blocks](SPIKE%20Prime%20Raw%20Device%20Blocks.png)
+
+Early in the reverse-engineering process, far more bytes were red — the 5×5 matrix display block was entirely unknown, and the colour sensor block had several unidentified bytes before the hi/lo pairs for R, G, and B were worked out. The raw bytes panel was the primary tool for narrowing these down.
+
+### Architecture
+
+```
+Hub ──BLE──▶ SpikePrime.Web (ASP.NET Core, :5000)
+                     │  WebSocket /ws
+                     ▼
+             Browser (SolidJS/Fable, :5173)
+```
+
+The server runs a `HubStreamService` background service that scans for and connects to a hub, parses the ~10 Hz sensor stream, and broadcasts JSON snapshots to all connected WebSocket clients. The browser reconnects automatically after 2 seconds if the connection drops.
+
+### Running the visualiser
+
+```powershell
+# Terminal 1 — backend server
+dotnet run --project SpikePrime.Web
+
+# Terminal 2 — Fable compiler + Vite dev server (combined)
+cd SpikePrime.Web.Client
+npm start
+```
+
+Then open http://localhost:5173.
+
+## Console smoke-test
+
+A minimal console app for verifying hub connectivity and sensor streaming without a browser. Useful as a quick sanity check and as a concise example of using the library directly.
 
 ```powershell
 dotnet run --project SpikePrime.Demo
 ```
 
-Press the hub's centre button when prompted. The demo:
-1. Connects to a hub named `"Apex"` (edit `Program.fs` to change the name or pass `None` to match any hub)
-2. Sends the init handshake
-3. Queries firmware version and hub info
-4. Starts the ~10 Hz sensor stream
-5. Prints up to 10 `DeviceSnapshot` values — IMU orientation, battery %, and per-port readings (motor position, distance, colour, force)
+Press the hub's centre button when prompted. It connects to a hub named `"Apex"` (edit `Program.fs` to change the name or pass `None` to match any hub), sends the init handshake, queries firmware and hub info, then prints 10 `DeviceSnapshot` values from the ~10 Hz sensor stream.
 
 Example output:
 ```
-snap[1]  bat=10%  yaw=-2    pitch=29    roll=27     face=0
-    port A  motor pos=-91 speed=0 power=0
-    port B  color id=255
+snap[1]  bat=10%  yaw=-2    pitch=29    roll=27     face=Top
+    port A  motor pos=-91 relPos=-91 speed=0% power=0%
+    port B  color id=7 reflect=94% rgb=(32,24,21)
     port D  distance = -1 mm
-    port F  motor pos=98 speed=0 power=0
-```
-
-## Building
-
-```powershell
-dotnet build
+    port F  motor pos=98 relPos=98 speed=0% power=0%
 ```
