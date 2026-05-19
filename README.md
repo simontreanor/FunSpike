@@ -30,7 +30,7 @@ funspike/
 ├── SpikePrime/               # Library (net10.0-windows10.0.26100.0)
 │   ├── Protocol.fs           # COBS+XOR codec, HubFrame, FrameDecoder, packMessage, encodeTunnelCommand
 │   ├── Transport.fs          # BLE scanner, HubConnection, scanAndConnectAsync
-│   ├── Hub.fs                # Hub type, connectFirstAsync, InitAsync, SendRequestAsync, SendMessageAsync, Notifications
+│   ├── Hub.fs                # Hub type, connectFirstAsync, InitAsync, SendRequestAsync, Notifications
 │   └── Devices.fs            # High-level typed API (see below)
 ├── SpikePrime.Demo/          # Console demo (net10.0-windows10.0.26100.0)
 │   └── Program.fs            # Connect, init, firmware query, sensor stream

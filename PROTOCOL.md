@@ -124,15 +124,14 @@ After COBS+XOR unpacking, the logical payload of a `0x3C` frame is:
 | faceUp byte | Orientation | Hub surface |
 |---|---|---|
 | 0 | Top | Side with 5×5 LED matrix |
-| 1 | Front | Side with USB port |
+| 1 | Back | Side with speaker |
 | 2 | Right side | Side with ports B, D, F |
 | 3 | Bottom | Battery compartment |
-| 4 | Back | Side with speaker |
+| 4 | Front | Side with USB port |
 | 5 | Left side | Side with ports A, C, E |
 
 > **Gap**: IMU byte [2] — empirically observed as `0x00` in all orientations and during continuous rotation. Hypothesis: face index stored when `hub.imu.reset_heading()` is called, recording which face was "forward" at the moment heading was zeroed (enables precise relative turns, e.g. rotate exactly 90°). Defaults to `0` at boot; never changes because this codebase does not call reset_heading. Name "yawRef" is inferred; not confirmed from firmware source.
-> **Gap**: Orientation mapping is derived from stock firmware constants (`hub.TOP=0`, `hub.FRONT=1`, etc.);
-> exact correspondence to the BLE wire byte needs empirical confirmation.
+> **Confirmed**: Orientation mapping has been empirically verified by physical testing. The BLE wire values differ from the LEGO firmware Python constants (`hub.FRONT=1`, `hub.BACK=4`) — Front and Back are swapped on the wire: BACK=1, FRONT=4.
 
 ---
 
@@ -298,12 +297,12 @@ Motor commands are sent as JSON strings inside a `MSG_TUNNEL` (0x32) envelope, C
 {"m":"motor","p":{"port":<0–5>,"speed":<−100..100>}}
 ```
 
-**Stop motor (coast):**
+**Stop motor (brake):**
 ```json
 {"m":"motor","p":{"port":<0–5>,"speed":0,"end_state":1}}
 ```
 
-Known `end_state` values: `0` = coast, `1` = brake, `2` = hold. Only coast (1) confirmed working.
+Known `end_state` values: `0` = coast, `1` = brake, `2` = hold. Only brake (1) confirmed working.
 
 > **Gap**: Full MSG_TUNNEL command vocabulary unknown. Other commands (LED, display matrix, sound, program execution) likely exist but have not been reverse-engineered for this firmware version.
 

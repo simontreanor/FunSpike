@@ -31,7 +31,7 @@
 ## Protocol gaps — empirical confirmation needed
 
 - [ ] **Streaming interval**: confirm what `[0x67, 0x00]` encodes (milliseconds? ticks?); experiment with other values to change frame rate
-- [ ] **IMU orientation mapping**: physically test each of the six orientations against the hub face and confirm the `faceUp` byte matches the table in `PROTOCOL.md`
+- [x] **IMU orientation mapping**: physically tested — empirically confirmed as TOP=0, BACK=1, RIGHT=2, BOTTOM=3, FRONT=4, LEFT=5; note FRONT/BACK are swapped vs the LEGO Python firmware constants; `PROTOCOL.md` table and `Devices.fs` updated accordingly
 - [ ] **IMU byte[2] (yawRef)**: call `hub.imu.reset_heading()` from a MicroPython script and observe whether byte[2] changes to confirm the hypothesis
 - [x] **Motor byte[2] (ioDeviceType)**: confirmed as LEGO I/O device type ID; values mapped to `IoDeviceType` DU in `Devices.parseIoDeviceType`
 - [ ] **`relativePosition` reset**: determine whether the accumulator resets on BLE connect, on a specific command, or never; document and expose a reset command if one exists
@@ -90,6 +90,6 @@
 
 - [ ] **Multiple hub support**: `Hub` is a single-connection wrapper; consider a registry/pool if connecting to more than one hub simultaneously
 - [ ] **Hub name configuration**: surface the hub name filter in the Web UI rather than hard-coding `"Apex"` in `Program.fs`
-- [ ] **Reconnection logic**: `Hub.Disconnected` fires but the Web server does not attempt to reconnect; add auto-reconnect with back-off
+- [x] **Reconnection logic**: `HubStreamService` reconnects automatically via a `while` loop; `hub.Disconnected` cancels the inner wait to trigger an immediate retry — add exponential back-off if needed
 - [ ] **ATT MTU negotiation**: `Transport.fs` hard-codes 20-byte chunks; investigate requesting a larger MTU to improve throughput
 - [ ] **Streaming rate control**: allow the client (Web UI) to change the `[0x67, 0x00]` interval parameter at runtime
