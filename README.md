@@ -88,7 +88,7 @@ funspike/
 | `MatrixDisplay` | `byte[] option` | 25 pixel brightness values (0–100), row-major; absent until first frame |
 | `Ports` | `(Port * PortReading) list` | Per-port readings |
 
-**`PortReading`** cases: `Motor of MotorReading` (position, relativePosition, speed, power) · `Distance of int16<mm>` · `Color of ColorReading` (colorId, reflect, red, green, blue) · `Force(pct, pressed)`
+**`PortReading`** cases: `Motor of MotorReading` (position, relativePosition, speed, power) · `Distance of int16<mm>` · `Color of ColorReading` (colorId, reflect, red/green/blue 0–255) · `Force(pct, pressed)`
 
 ## Web Visualiser
 

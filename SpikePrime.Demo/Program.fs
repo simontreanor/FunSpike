@@ -46,7 +46,7 @@ let main _ =
                         match reading with
                         | Distance d         -> printfn "        port %A  distance = %d mm" port d
                         | Motor m            -> printfn "        port %A  motor pos=%d relPos=%d speed=%d%% power=%d%%" port m.Position m.RelativePosition m.Speed m.Power
-                        | Color cr           -> printfn "        port %A  color id=%d reflect=%d%% rgb=(%d,%d,%d)" port cr.ColorId cr.Reflect (int cr.Red / 4) (int cr.Green / 4) (int cr.Blue / 4)
+                        | Color cr           -> printfn "        port %A  color id=%d reflect=%d%% rgb=(%d,%d,%d)" port cr.ColorId cr.Reflect cr.Red cr.Green cr.Blue
                         | Force(pct,pressed) -> printfn "        port %A  force=%d%% pressed=%b" port pct pressed)
 
         do! Task.Delay(3000)
