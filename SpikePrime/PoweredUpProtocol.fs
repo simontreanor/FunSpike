@@ -99,3 +99,54 @@ let MsgPortOutputCmd = 0x81uy
 let buildHubPropertiesSubscribe (propertyId: byte) : byte[] =
     // [length=5][hub_id=0][0x01 HubProperties][propertyId][0x02 Subscribe]
     [| 0x05uy; 0x00uy; MsgHubProperties; propertyId; 0x02uy |]
+
+// ---------------------------------------------------------------------------
+// Hub Properties / Hub Attached I/O — shared constants
+// (used by city hub 88009, move hub 88006, and remote 88010)
+// ---------------------------------------------------------------------------
+
+/// Hub Properties: Update notification operation byte (hub → host, 0x06).
+[<Literal>]
+let HubPropOpUpdate = 0x06uy
+
+/// Hub Properties: Button state property ID (0x02).
+[<Literal>]
+let HubPropIdButton = 0x02uy
+
+/// Hub Properties: Battery voltage % property ID (0x06).
+[<Literal>]
+let HubPropIdBattery = 0x06uy
+
+/// Hub Attached I/O: event — device was detached (0x00).
+[<Literal>]
+let IoEventDetached = 0x00uy
+
+/// Hub Attached I/O: event — device was attached (0x01).
+[<Literal>]
+let IoEventAttached = 0x01uy
+
+// ---------------------------------------------------------------------------
+// IO device type → human-readable name
+// ---------------------------------------------------------------------------
+
+/// Return a human-readable name for a LWP 3.0 IO device type ID.
+/// Falls back to "0xNNNN" for unknown types.
+let ioDeviceName (id: uint16) =
+    match id with
+    | 0x0001us -> "Motor"
+    | 0x0002us -> "Train Motor"
+    | 0x000Bus -> "Boost Motor"
+    | 0x0014us -> "Voltage"
+    | 0x0015us -> "Current"
+    | 0x0016us -> "Piezo"
+    | 0x0017us -> "RGB LED"
+    | 0x001Eus -> "PF Motor"
+    | 0x0025us -> "Color/Dist Sensor"
+    | 0x0026us -> "Interactive Motor"
+    | 0x0028us -> "Move Hub Motor"
+    | 0x002Eus -> "Large Motor"
+    | 0x002Fus -> "XL Motor"
+    | 0x0034us -> "3-Phase Motor"
+    | 0x0039us -> "Medium Angular Motor"
+    | 0x004Bus -> "Large Angular Motor"
+    | other    -> sprintf "0x%04X" other

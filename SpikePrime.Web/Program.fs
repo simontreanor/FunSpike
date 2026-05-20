@@ -15,6 +15,7 @@ open Microsoft.Extensions.Logging
 open SpikePrime.Devices
 open SpikePrime.PoweredUpRemote
 open SpikePrime.PoweredUpHub
+open SpikePrime.MoveHub
 
 // ── JSON serialisation ────────────────────────────────────────────────────────
 
@@ -158,6 +159,27 @@ let private broadcastPwrHubState () =
            pHubButton    = pHubButton
            pHubPortA     = pHubPortA
            pHubPortB     = pHubPortB |}, jsonOpts))
+
+let private broadcastMoveHubStatus (connected: bool) =
+    broadcast (JsonSerializer.Serialize({| mHubConnected = connected |}, jsonOpts))
+
+// Mutable state for the 88006 Move Hub; updated on BLE notification thread.
+let mutable mHubBattery = -1
+let mutable mHubButton  = false
+let mutable mHubPortA   = ""   // external port A (0)
+let mutable mHubPortB   = ""   // external port B (1)
+let mutable mHubPortC   = ""   // internal motor C (2)
+let mutable mHubPortD   = ""   // internal motor D (3)
+
+let private broadcastMoveHubState () =
+    broadcast (JsonSerializer.Serialize(
+        {| mHubConnected = true
+           mHubBattery   = mHubBattery
+           mHubButton    = mHubButton
+           mHubPortA     = mHubPortA
+           mHubPortB     = mHubPortB
+           mHubPortC     = mHubPortC
+           mHubPortD     = mHubPortD |}, jsonOpts))
 
 // ── BLE background services ───────────────────────────────────────────────────
 
@@ -306,6 +328,68 @@ type PwrHubStreamService(logger: ILogger<PwrHubStreamService>) =
                         do! Task.Delay(3000, ct)
         }
 
+type MoveHubStreamService(logger: ILogger<MoveHubStreamService>) =
+    inherit BackgroundService()
+
+    override _.ExecuteAsync(ct: CancellationToken) =
+        task {
+            while not ct.IsCancellationRequested do
+                logger.LogInformation("Waiting for BOOST Move Hub (88006)…")
+                try
+                    use! hub = scanAndConnectMoveHubAsync(TimeSpan.FromSeconds 120.0)
+                    logger.LogInformation("Move Hub connected!")
+                    mHubBattery <- -1
+                    mHubButton  <- false
+                    mHubPortA   <- ""
+                    mHubPortB   <- ""
+                    mHubPortC   <- ""
+                    mHubPortD   <- ""
+                    broadcastMoveHubStatus true
+                    use hubCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
+                    use _disconnectSub =
+                        hub.Disconnected
+                        |> Observable.subscribe (fun () ->
+                            logger.LogInformation("Move Hub disconnected — will reconnect.")
+                            broadcastMoveHubStatus false
+                            hubCts.Cancel())
+                    use _eventSub =
+                        hub.Events
+                        |> Observable.subscribe (fun ev ->
+                            match ev with
+                            | PortAttached dev ->
+                                match dev.PortId with
+                                | 0uy -> mHubPortA <- dev.Name
+                                | 1uy -> mHubPortB <- dev.Name
+                                | 2uy -> mHubPortC <- dev.Name
+                                | 3uy -> mHubPortD <- dev.Name
+                                | _   -> ()  // virtual ports (LED, tilt, etc.) — ignore
+                                broadcastMoveHubState()
+                            | PortDetached portId ->
+                                match portId with
+                                | 0uy -> mHubPortA <- ""
+                                | 1uy -> mHubPortB <- ""
+                                | 2uy -> mHubPortC <- ""
+                                | 3uy -> mHubPortD <- ""
+                                | _   -> ()
+                                broadcastMoveHubState()
+                            | ButtonChanged pressed ->
+                                mHubButton <- pressed
+                                broadcastMoveHubState()
+                            | BatteryChanged pct ->
+                                mHubBattery <- pct
+                                broadcastMoveHubState())
+                    try
+                        do! Task.Delay(Timeout.Infinite, hubCts.Token)
+                    with :? OperationCanceledException -> ()
+                with
+                | :? OperationCanceledException -> ()
+                | ex ->
+                    logger.LogError(ex, "Move Hub stream error — retrying in 3 s.")
+                    broadcastMoveHubStatus false
+                    if not ct.IsCancellationRequested then
+                        do! Task.Delay(3000, ct)
+        }
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 [<EntryPoint>]
@@ -314,6 +398,7 @@ let main _args =
     builder.Services.AddHostedService<HubStreamService>() |> ignore
     builder.Services.AddHostedService<RemoteStreamService>() |> ignore
     builder.Services.AddHostedService<PwrHubStreamService>() |> ignore
+    builder.Services.AddHostedService<MoveHubStreamService>() |> ignore
     builder.Services.AddLogging(fun cfg ->
         cfg.AddSimpleConsole(fun o -> o.SingleLine <- true) |> ignore) |> ignore
 

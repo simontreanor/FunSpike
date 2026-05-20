@@ -45,6 +45,8 @@ let remoteConnected, setRemoteConnected = createSignal(false)   // BLE remote �
 let remoteState,     setRemoteState     = createSignal<{| left: string; right: string; battery: int; greenButton: bool |} option>(None)
 let pwrHubConnected, setPwrHubConnected = createSignal(false)   // BLE 88009 hub ↔ server
 let pwrHubState,     setPwrHubState     = createSignal<{| battery: int; button: bool; portA: string; portB: string |} option>(None)
+let moveHubConnected, setMoveHubConnected = createSignal(false)  // BLE 88006 move hub ↔ server
+let moveHubState,     setMoveHubState     = createSignal<{| battery: int; button: bool; portA: string; portB: string; portC: string; portD: string |} option>(None)
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -91,6 +93,19 @@ let rec initWs () =
                                         button  = (!!msg?pHubButton  : bool)
                                         portA   = (!!msg?pHubPortA   : string)
                                         portB   = (!!msg?pHubPortB   : string) |}) |> ignore
+        // 88006 BOOST Move Hub status / state
+        if not (isNull !!msg?mHubConnected) then
+            let conn = !!msg?mHubConnected : bool
+            setMoveHubConnected conn |> ignore
+            if not conn then
+                setMoveHubState None |> ignore
+            elif not (isNull !!msg?mHubBattery) then
+                setMoveHubState (Some {| battery = (!!msg?mHubBattery : int)
+                                         button  = (!!msg?mHubButton  : bool)
+                                         portA   = (!!msg?mHubPortA   : string)
+                                         portB   = (!!msg?mHubPortB   : string)
+                                         portC   = (!!msg?mHubPortC   : string)
+                                         portD   = (!!msg?mHubPortD   : string) |}) |> ignore
         // Hub snapshot (only when ports field is present)
         if not (isNull (!!msg?ports)) then
             setSnapshot (Some (!!msg : ISnapshot)) |> ignore
@@ -344,6 +359,57 @@ let BlockRow (block: IBlock) =
             }
         }
     }
+// ── BOOST Move Hub panel (88006) ──────────────────────────────────────────────────────
+
+[<SolidComponent>]
+let MoveHubPanel () =
+    div(class'="panel movehub-panel") {
+        h3() { "Move Hub \u00B7 88006" }
+        Show(when'= moveHubConnected(),
+             fallback = p(class'="muted") { "Not connected." }) {
+            div(class'="pwrhub-body") {
+                div(class'="pwrhub-row") {
+                    span(class'="pwrhub-label") { "\U0001F50B" }
+                    span() {
+                        moveHubState() |> Option.map (fun s -> if s.battery >= 0 then sprintf "%d%%" s.battery else "\u2014") |> Option.defaultValue "\u2014"
+                    }
+                }
+                div(class'="pwrhub-row") {
+                    span(class'="pwrhub-label") { "Button" }
+                    span(class'= "pwrhub-btn" + (if moveHubState() |> Option.map (fun s -> s.button) |> Option.defaultValue false then " pwrhub-btn-active" else "")) {
+                        if moveHubState() |> Option.map (fun s -> s.button) |> Option.defaultValue false then "Pressed" else "Released"
+                    }
+                }
+                div(class'="movehub-ports") {
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "A" }
+                        div(class'="pwrhub-port-device") {
+                            moveHubState() |> Option.map (fun s -> if s.portA = "" then "\u2014" else s.portA) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "B" }
+                        div(class'="pwrhub-port-device") {
+                            moveHubState() |> Option.map (fun s -> if s.portB = "" then "\u2014" else s.portB) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "C" }
+                        div(class'="pwrhub-port-device") {
+                            moveHubState() |> Option.map (fun s -> if s.portC = "" then "\u2014" else s.portC) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "D" }
+                        div(class'="pwrhub-port-device") {
+                            moveHubState() |> Option.map (fun s -> if s.portD = "" then "\u2014" else s.portD) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 // ── Powered Up Hub panel (88009) ────────────────────────────────────────────────────
 
 [<SolidComponent>]
@@ -493,7 +559,11 @@ let App () =
             span(class'= (if pwrHubConnected() then "badge badge-ok" else "badge badge-off")) {
                 if pwrHubConnected() then "\u25CF Hub 88009" else "\u25CB Hub 88009"
             }
+            span(class'= (if moveHubConnected() then "badge badge-ok" else "badge badge-off")) {
+                if moveHubConnected() then "\u25CF Move Hub" else "\u25CB Move Hub"
+            }
         }
+        MoveHubPanel ()
         PwrHubPanel ()
         RemotePanel ()
         Show(when'= snapshot().IsSome,

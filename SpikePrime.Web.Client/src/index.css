@@ -439,3 +439,14 @@ body {
     border-radius: 4px;
     white-space: nowrap;
 }
+
+/* ── BOOST Move Hub panel (88006) ─────────────────────────────────────────── */
+.movehub-panel { min-width: 200px; flex-shrink: 0; }
+
+/* 2×2 port grid: A/B (external) top row, C/D (internal motors) bottom row */
+.movehub-ports {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin-top: 0.4rem;
+}

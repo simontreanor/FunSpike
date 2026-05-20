@@ -12,6 +12,7 @@
     <Compile Include="PoweredUpProtocol.fs" />
     <Compile Include="PoweredUpRemote.fs" />
     <Compile Include="PoweredUpHub.fs" />
+    <Compile Include="MoveHub.fs" />
   </ItemGroup>
 
 </Project>

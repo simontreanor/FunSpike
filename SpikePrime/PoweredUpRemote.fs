@@ -83,11 +83,11 @@ type RemoteConnection(device: BluetoothLEDevice, char_: GattCharacteristic) =
             // Payload: [propertyId][operation][value…]
             let propId = msg.Payload.[0]
             let op     = msg.Payload.[1]
-            if op = 0x06uy then  // HubPropUpdate
+            if op = HubPropOpUpdate then
                 match propId with
-                | 0x02uy -> greenBtnEvt.Trigger(msg.Payload.[2] <> 0uy)  // green button
-                | 0x06uy -> batteryEvt.Trigger(int msg.Payload.[2])      // battery %
-                | _      -> ()
+                | p when p = HubPropIdButton  -> greenBtnEvt.Trigger(msg.Payload.[2] <> 0uy)
+                | p when p = HubPropIdBattery -> batteryEvt.Trigger(int msg.Payload.[2])
+                | _ -> ()
         | _ -> ())
 
     do device.add_ConnectionStatusChanged(fun dev _ ->
