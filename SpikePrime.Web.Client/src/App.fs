@@ -38,9 +38,11 @@ type ISnapshot =
 
 // ── Global reactive state ─────────────────────────────────────────────────────
 
-let snapshot,     setSnapshot     = createSignal<ISnapshot option>(None)
-let connected,    setConnected    = createSignal(false)   // WebSocket to server
-let hubConnected, setHubConnected = createSignal(false)   // BLE hub ↔ server
+let snapshot,        setSnapshot        = createSignal<ISnapshot option>(None)
+let connected,       setConnected       = createSignal(false)   // WebSocket to server
+let hubConnected,    setHubConnected    = createSignal(false)   // BLE hub ↔ server
+let remoteConnected, setRemoteConnected = createSignal(false)   // BLE remote ↔ server
+let remoteState,     setRemoteState     = createSignal<{| left: string; right: string |} option>(None)
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -62,9 +64,19 @@ let rec initWs () =
     ws?onerror   <- fun _ -> setConnected false |> ignore
     ws?onmessage <- fun (e: obj) ->
         let msg : obj = jsonParse (!!e?data)
-        // hubConnected is present in every server message (status or snapshot)
-        setHubConnected (!!msg?hubConnected : bool) |> ignore
-        // Only treat as a full snapshot when ports data is present
+        // Only update hub status when the field is present (avoid stomping from remote messages)
+        if not (isNull !!msg?hubConnected) then
+            setHubConnected (!!msg?hubConnected : bool) |> ignore
+        // Remote status / state — only when remoteConnected field is present
+        if not (isNull !!msg?remoteConnected) then
+            let conn = !!msg?remoteConnected : bool
+            setRemoteConnected conn |> ignore
+            if not conn then
+                setRemoteState None |> ignore
+            elif not (isNull !!msg?left) then
+                setRemoteState (Some {| left  = (!!msg?left  : string)
+                                        right = (!!msg?right : string) |}) |> ignore
+        // Hub snapshot (only when ports field is present)
         if not (isNull (!!msg?ports)) then
             setSnapshot (Some (!!msg : ISnapshot)) |> ignore
 
@@ -317,7 +329,30 @@ let BlockRow (block: IBlock) =
             }
         }
     }
+// ── Remote panel (88010) ──────────────────────────────────────────────────────────────
 
+// Render one channel column (+, STOP, −) with the active button highlighted.
+[<SolidComponent>]
+let RemoteChannelView (label: string) (active: string) =
+    div(class'="remote-channel") {
+        div(class'="remote-ch-label") { label }
+        div(class'= "remote-btn"      + (if active = "Plus"  then " remote-btn-active" else "")) { "+" }
+        div(class'= "remote-btn remote-btn-stop" + (if active = "Stop"  then " remote-btn-active" else "")) { "\u25A0" }
+        div(class'= "remote-btn"      + (if active = "Minus" then " remote-btn-active" else "")) { "\u2212" }
+    }
+
+[<SolidComponent>]
+let RemotePanel () =
+    div(class'="panel remote-panel") {
+        h3() { "Remote \u00B7 88010" }
+        Show(when'= remoteConnected(),
+             fallback = p(class'="muted") { "Not connected." }) {
+            div(class'="remote-channels") {
+                RemoteChannelView "LEFT"  (remoteState() |> Option.map (fun s -> s.left)  |> Option.defaultValue "Released")
+                RemoteChannelView "RIGHT" (remoteState() |> Option.map (fun s -> s.right) |> Option.defaultValue "Released")
+            }
+        }
+    }
 // ── SnapshotView ──────────────────────────────────────────────────────────────
 // Extracted so the Show body never contains a `let` binding.
 // (Oxpecker.Solid plugin constraint: `let` inside HTML CEs cannot be
@@ -386,7 +421,11 @@ let App () =
             span(class'= (if hubConnected() then "badge badge-ok" else "badge badge-off")) {
                 if hubConnected() then "\u25CF Hub" else "\u25CB Hub"
             }
+            span(class'= (if remoteConnected() then "badge badge-ok" else "badge badge-off")) {
+                if remoteConnected() then "\u25CF Remote" else "\u25CB Remote"
+            }
         }
+        RemotePanel ()
         Show(when'= snapshot().IsSome,
              fallback = div(class'="waiting") { "\u23F3 Waiting for hub data\u2026" }) {
             SnapshotView ()

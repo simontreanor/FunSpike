@@ -314,3 +314,62 @@ body {
 }
 
 .muted { color: var(--muted); }
+
+/* ── Remote panel (88010) ─────────────────────────────────────────────────── */
+.remote-panel { min-width: 200px; flex-shrink: 0; }
+
+.remote-channels {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    padding: 0.25rem 0;
+}
+
+.remote-channel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.remote-ch-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 0.1rem;
+}
+
+.remote-btn {
+    width: 2.6rem;
+    height: 2.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--border);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--muted);
+    transition: background 0.08s, color 0.08s, box-shadow 0.08s;
+    user-select: none;
+}
+
+.remote-btn-stop {
+    border-radius: 6px;
+    width: 2rem;
+    height: 1.5rem;
+    font-size: 0.75rem;
+}
+
+.remote-btn-active {
+    background: var(--green);
+    color: #000;
+    box-shadow: 0 0 10px rgba(34,197,94,.5);
+}
+
+.remote-btn-stop.remote-btn-active {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(239,68,68,.5);
+}

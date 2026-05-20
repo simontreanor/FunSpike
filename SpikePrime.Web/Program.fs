@@ -13,6 +13,7 @@ open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open SpikePrime.Devices
+open SpikePrime.PoweredUpRemote
 
 // ── JSON serialisation ────────────────────────────────────────────────────────
 
@@ -122,7 +123,21 @@ let private broadcast (json: string) =
 let private broadcastHubStatus (connected: bool) =
     broadcast (JsonSerializer.Serialize({| hubConnected = connected |}, jsonOpts))
 
-// ── BLE background service ────────────────────────────────────────────────────
+let private broadcastRemoteStatus (connected: bool) =
+    broadcast (JsonSerializer.Serialize({| remoteConnected = connected |}, jsonOpts))
+
+// Mutable button state for the remote; updated on the BLE notification thread.
+// Safe for a single-user debug tool — any momentary race is cosmetic.
+let mutable remoteBtnLeft  = "Released"
+let mutable remoteBtnRight = "Released"
+
+let private broadcastRemoteState () =
+    broadcast (JsonSerializer.Serialize(
+        {| remoteConnected = true
+           left  = remoteBtnLeft
+           right = remoteBtnRight |}, jsonOpts))
+
+// ── BLE background services ───────────────────────────────────────────────────
 
 type HubStreamService(logger: ILogger<HubStreamService>) =
     inherit BackgroundService()
@@ -162,12 +177,52 @@ type HubStreamService(logger: ILogger<HubStreamService>) =
                         do! Task.Delay(3000, ct)
         }
 
+type RemoteStreamService(logger: ILogger<RemoteStreamService>) =
+    inherit BackgroundService()
+
+    override _.ExecuteAsync(ct: CancellationToken) =
+        task {
+            while not ct.IsCancellationRequested do
+                logger.LogInformation("Waiting for Powered Up remote…")
+                try
+                    use! remote = scanAndConnectRemoteAsync(TimeSpan.FromSeconds 120.0)
+                    logger.LogInformation("Remote connected!")
+                    remoteBtnLeft  <- "Released"
+                    remoteBtnRight <- "Released"
+                    broadcastRemoteStatus true
+                    use remoteCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
+                    use _disconnectSub =
+                        remote.Disconnected
+                        |> Observable.subscribe (fun () ->
+                            logger.LogInformation("Remote disconnected — will reconnect.")
+                            broadcastRemoteStatus false
+                            remoteCts.Cancel())
+                    use _eventSub =
+                        remote.ButtonEvents
+                        |> Observable.subscribe (fun ev ->
+                            match ev.Channel with
+                            | Left  -> remoteBtnLeft  <- string ev.Button
+                            | Right -> remoteBtnRight <- string ev.Button
+                            broadcastRemoteState())
+                    try
+                        do! Task.Delay(Timeout.Infinite, remoteCts.Token)
+                    with :? OperationCanceledException -> ()
+                with
+                | :? OperationCanceledException -> ()
+                | ex ->
+                    logger.LogError(ex, "Remote stream error — retrying in 3 s.")
+                    broadcastRemoteStatus false
+                    if not ct.IsCancellationRequested then
+                        do! Task.Delay(3000, ct)
+        }
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 [<EntryPoint>]
 let main _args =
     let builder = WebApplication.CreateBuilder()
     builder.Services.AddHostedService<HubStreamService>() |> ignore
+    builder.Services.AddHostedService<RemoteStreamService>() |> ignore
     builder.Services.AddLogging(fun cfg ->
         cfg.AddSimpleConsole(fun o -> o.SingleLine <- true) |> ignore) |> ignore
 
