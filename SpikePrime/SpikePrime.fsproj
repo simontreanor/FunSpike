@@ -9,6 +9,8 @@
     <Compile Include="Transport.fs" />
     <Compile Include="Hub.fs" />
     <Compile Include="Devices.fs" />
+    <Compile Include="PoweredUpProtocol.fs" />
+    <Compile Include="PoweredUpRemote.fs" />
   </ItemGroup>
 
 </Project>
