@@ -43,6 +43,8 @@ let connected,       setConnected       = createSignal(false)   // WebSocket to 
 let hubConnected,    setHubConnected    = createSignal(false)   // BLE hub ↔ server
 let remoteConnected, setRemoteConnected = createSignal(false)   // BLE remote ↔ server
 let remoteState,     setRemoteState     = createSignal<{| left: string; right: string |} option>(None)
+let pwrHubConnected, setPwrHubConnected = createSignal(false)   // BLE 88009 hub ↔ server
+let pwrHubState,     setPwrHubState     = createSignal<{| battery: int; button: bool; portA: string; portB: string |} option>(None)
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,17 @@ let rec initWs () =
             elif not (isNull !!msg?left) then
                 setRemoteState (Some {| left  = (!!msg?left  : string)
                                         right = (!!msg?right : string) |}) |> ignore
+        // 88009 Powered Up hub status / state
+        if not (isNull !!msg?pHubConnected) then
+            let conn = !!msg?pHubConnected : bool
+            setPwrHubConnected conn |> ignore
+            if not conn then
+                setPwrHubState None |> ignore
+            elif not (isNull !!msg?pHubBattery) then
+                setPwrHubState (Some {| battery = (!!msg?pHubBattery : int)
+                                        button  = (!!msg?pHubButton  : bool)
+                                        portA   = (!!msg?pHubPortA   : string)
+                                        portB   = (!!msg?pHubPortB   : string) |}) |> ignore
         // Hub snapshot (only when ports field is present)
         if not (isNull (!!msg?ports)) then
             setSnapshot (Some (!!msg : ISnapshot)) |> ignore
@@ -329,6 +342,45 @@ let BlockRow (block: IBlock) =
             }
         }
     }
+// ── Powered Up Hub panel (88009) ────────────────────────────────────────────────────
+
+[<SolidComponent>]
+let PwrHubPanel () =
+    div(class'="panel pwrhub-panel") {
+        h3() { "Hub \u00B7 88009" }
+        Show(when'= pwrHubConnected(),
+             fallback = p(class'="muted") { "Not connected." }) {
+            div(class'="pwrhub-body") {
+                div(class'="pwrhub-row") {
+                    span(class'="pwrhub-label") { "\U0001F50B" }
+                    span() {
+                        pwrHubState() |> Option.map (fun s -> if s.battery >= 0 then sprintf "%d%%" s.battery else "\u2014") |> Option.defaultValue "\u2014"
+                    }
+                }
+                div(class'="pwrhub-row") {
+                    span(class'="pwrhub-label") { "Button" }
+                    span(class'= "pwrhub-btn" + (if pwrHubState() |> Option.map (fun s -> s.button) |> Option.defaultValue false then " pwrhub-btn-active" else "")) {
+                        if pwrHubState() |> Option.map (fun s -> s.button) |> Option.defaultValue false then "Pressed" else "Released"
+                    }
+                }
+                div(class'="pwrhub-ports") {
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "A" }
+                        div(class'="pwrhub-port-device") {
+                            pwrHubState() |> Option.map (fun s -> if s.portA = "" then "\u2014" else s.portA) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                    div(class'="pwrhub-port") {
+                        div(class'="pwrhub-port-label") { "B" }
+                        div(class'="pwrhub-port-device") {
+                            pwrHubState() |> Option.map (fun s -> if s.portB = "" then "\u2014" else s.portB) |> Option.defaultValue "\u2014"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 // ── Remote panel (88010) ──────────────────────────────────────────────────────────────
 
 // Render one channel column (+, STOP, −) with the active button highlighted.
@@ -424,7 +476,11 @@ let App () =
             span(class'= (if remoteConnected() then "badge badge-ok" else "badge badge-off")) {
                 if remoteConnected() then "\u25CF Remote" else "\u25CB Remote"
             }
+            span(class'= (if pwrHubConnected() then "badge badge-ok" else "badge badge-off")) {
+                if pwrHubConnected() then "\u25CF Hub 88009" else "\u25CB Hub 88009"
+            }
         }
+        PwrHubPanel ()
         RemotePanel ()
         Show(when'= snapshot().IsSome,
              fallback = div(class'="waiting") { "\u23F3 Waiting for hub data\u2026" }) {

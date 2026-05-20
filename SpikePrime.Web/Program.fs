@@ -14,6 +14,7 @@ open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.Logging
 open SpikePrime.Devices
 open SpikePrime.PoweredUpRemote
+open SpikePrime.PoweredUpHub
 
 // ── JSON serialisation ────────────────────────────────────────────────────────
 
@@ -137,6 +138,23 @@ let private broadcastRemoteState () =
            left  = remoteBtnLeft
            right = remoteBtnRight |}, jsonOpts))
 
+let private broadcastPwrHubStatus (connected: bool) =
+    broadcast (JsonSerializer.Serialize({| pHubConnected = connected |}, jsonOpts))
+
+// Mutable state for the 88009 hub; updated on BLE notification thread.
+let mutable pHubBattery = -1
+let mutable pHubButton  = false
+let mutable pHubPortA   = ""   // device name on external port A (0), or ""
+let mutable pHubPortB   = ""   // device name on external port B (1), or ""
+
+let private broadcastPwrHubState () =
+    broadcast (JsonSerializer.Serialize(
+        {| pHubConnected = true
+           pHubBattery   = pHubBattery
+           pHubButton    = pHubButton
+           pHubPortA     = pHubPortA
+           pHubPortB     = pHubPortB |}, jsonOpts))
+
 // ── BLE background services ───────────────────────────────────────────────────
 
 type HubStreamService(logger: ILogger<HubStreamService>) =
@@ -216,6 +234,62 @@ type RemoteStreamService(logger: ILogger<RemoteStreamService>) =
                         do! Task.Delay(3000, ct)
         }
 
+type PwrHubStreamService(logger: ILogger<PwrHubStreamService>) =
+    inherit BackgroundService()
+
+    override _.ExecuteAsync(ct: CancellationToken) =
+        task {
+            while not ct.IsCancellationRequested do
+                logger.LogInformation("Waiting for Powered Up hub (88009)…")
+                try
+                    use! hub = scanAndConnectHubAsync(TimeSpan.FromSeconds 120.0)
+                    logger.LogInformation("Powered Up hub connected!")
+                    pHubBattery <- -1
+                    pHubButton  <- false
+                    pHubPortA   <- ""
+                    pHubPortB   <- ""
+                    broadcastPwrHubStatus true
+                    use hubCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
+                    use _disconnectSub =
+                        hub.Disconnected
+                        |> Observable.subscribe (fun () ->
+                            logger.LogInformation("Powered Up hub disconnected — will reconnect.")
+                            broadcastPwrHubStatus false
+                            hubCts.Cancel())
+                    use _eventSub =
+                        hub.Events
+                        |> Observable.subscribe (fun ev ->
+                            match ev with
+                            | PortAttached dev ->
+                                match dev.PortId with
+                                | 0uy -> pHubPortA <- dev.Name
+                                | 1uy -> pHubPortB <- dev.Name
+                                | _   -> ()  // virtual ports (LED, Voltage, etc.) — ignore
+                                broadcastPwrHubState()
+                            | PortDetached portId ->
+                                match portId with
+                                | 0uy -> pHubPortA <- ""
+                                | 1uy -> pHubPortB <- ""
+                                | _   -> ()
+                                broadcastPwrHubState()
+                            | ButtonChanged pressed ->
+                                pHubButton <- pressed
+                                broadcastPwrHubState()
+                            | BatteryChanged pct ->
+                                pHubBattery <- pct
+                                broadcastPwrHubState())
+                    try
+                        do! Task.Delay(Timeout.Infinite, hubCts.Token)
+                    with :? OperationCanceledException -> ()
+                with
+                | :? OperationCanceledException -> ()
+                | ex ->
+                    logger.LogError(ex, "Powered Up hub stream error — retrying in 3 s.")
+                    broadcastPwrHubStatus false
+                    if not ct.IsCancellationRequested then
+                        do! Task.Delay(3000, ct)
+        }
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 [<EntryPoint>]
@@ -223,6 +297,7 @@ let main _args =
     let builder = WebApplication.CreateBuilder()
     builder.Services.AddHostedService<HubStreamService>() |> ignore
     builder.Services.AddHostedService<RemoteStreamService>() |> ignore
+    builder.Services.AddHostedService<PwrHubStreamService>() |> ignore
     builder.Services.AddLogging(fun cfg ->
         cfg.AddSimpleConsole(fun o -> o.SingleLine <- true) |> ignore) |> ignore
 

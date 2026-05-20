@@ -88,3 +88,14 @@ let buildPortInputFormatSetup (portId: byte) (mode: byte) : byte[] =
        portId; mode
        0x01uy; 0x00uy; 0x00uy; 0x00uy  // deltaInterval = 1 (little-endian uint32)
        0x01uy |]                        // notificationEnabled = true
+
+/// Port Output Command (host → hub): drive output devices such as motors and LEDs.
+[<Literal>]
+let MsgPortOutputCmd = 0x81uy
+
+/// Build a Hub Properties Subscribe command (0x01 / operation 0x02).
+/// Tells the hub to push an Update whenever the given property changes.
+/// Common property IDs: 0x02 = Button state, 0x06 = Battery voltage %.
+let buildHubPropertiesSubscribe (propertyId: byte) : byte[] =
+    // [length=5][hub_id=0][0x01 HubProperties][propertyId][0x02 Subscribe]
+    [| 0x05uy; 0x00uy; MsgHubProperties; propertyId; 0x02uy |]

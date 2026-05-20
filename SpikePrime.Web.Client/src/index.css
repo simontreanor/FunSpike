@@ -373,3 +373,69 @@ body {
     color: #fff;
     box-shadow: 0 0 10px rgba(239,68,68,.5);
 }
+
+/* ── Powered Up Hub panel (88009) ─────────────────────────────────────────── */
+.pwrhub-panel { min-width: 160px; flex-shrink: 0; }
+
+.pwrhub-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.pwrhub-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.pwrhub-label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    min-width: 3.2rem;
+}
+
+.pwrhub-btn {
+    font-size: 0.8rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: var(--border);
+    color: var(--muted);
+    transition: background 0.08s, color 0.08s, box-shadow 0.08s;
+    user-select: none;
+}
+
+.pwrhub-btn-active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 8px rgba(59,130,246,.5);
+}
+
+.pwrhub-ports {
+    display: flex;
+    gap: 1.2rem;
+    margin-top: 0.2rem;
+}
+
+.pwrhub-port {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.pwrhub-port-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.pwrhub-port-device {
+    font-size: 0.78rem;
+    color: var(--text);
+    background: var(--border);
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
