@@ -1,6 +1,6 @@
 # Funspike — Development Process
 
-This document summarises the development of the `funspike` F# library and visualiser across nine LLM-assisted coding sessions spanning 2026-05-17 to 2026-05-19.
+This document summarises the development of the `FunSpike` F# library and visualiser across nine LLM-assisted coding sessions spanning 2026-05-17 to 2026-05-19.
 
 ---
 
@@ -19,7 +19,7 @@ The web app capture produced TX/RX byte sequences like:
 This gave enough detail to reverse-engineer the framing layer.
 
 ### Project scaffolding
-- Created `funspike.slnx` solution targeting **.NET 10 / Windows 11 25H2** using WinRT BLE APIs (`net10.0-windows10.0.26200.0`, later bumped to `26200` and `28000` as new SDKs were installed)
+- Created `FunSpike.slnx` solution targeting **.NET 10 / Windows 11 25H2** using WinRT BLE APIs (`net10.0-windows10.0.26200.0`, later bumped to `26200` and `28000` as new SDKs were installed)
 - Two projects: `SpikePrime` (library) and `SpikePrime.Demo` (console)
 
 ### Library implementation

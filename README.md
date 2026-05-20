@@ -1,4 +1,4 @@
-# funspike
+# FunSpike
 
 A purely F# library for connecting to and reading sensors from a **LEGO SPIKE Prime** hub over Bluetooth LE on Windows — no Python, no C# wrappers.
 
@@ -25,8 +25,8 @@ The hub is identified during BLE scanning by the presence of this service UUID i
 ## Project structure
 
 ```
-funspike/
-├── funspike.slnx
+FunSpike/
+├── FunSpike.slnx
 ├── SpikePrime/               # Library (net10.0-windows10.0.26100.0)
 │   ├── Protocol.fs           # COBS+XOR codec, HubFrame, FrameDecoder, packMessage, encodeTunnelCommand
 │   ├── Transport.fs          # BLE scanner, HubConnection, scanAndConnectAsync

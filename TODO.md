@@ -1,4 +1,4 @@
-# funspike — To-Do List
+# FunSpike — To-Do List
 
 ## Hub hardware — reverse-engineering
 
