@@ -131,12 +131,16 @@ let private broadcastRemoteStatus (connected: bool) =
 // Safe for a single-user debug tool — any momentary race is cosmetic.
 let mutable remoteBtnLeft  = "Released"
 let mutable remoteBtnRight = "Released"
+let mutable remoteBattery  = -1
+let mutable remoteGreenBtn = false
 
 let private broadcastRemoteState () =
     broadcast (JsonSerializer.Serialize(
         {| remoteConnected = true
-           left  = remoteBtnLeft
-           right = remoteBtnRight |}, jsonOpts))
+           left        = remoteBtnLeft
+           right       = remoteBtnRight
+           battery     = remoteBattery
+           greenButton = remoteGreenBtn |}, jsonOpts))
 
 let private broadcastPwrHubStatus (connected: bool) =
     broadcast (JsonSerializer.Serialize({| pHubConnected = connected |}, jsonOpts))
@@ -207,6 +211,8 @@ type RemoteStreamService(logger: ILogger<RemoteStreamService>) =
                     logger.LogInformation("Remote connected!")
                     remoteBtnLeft  <- "Released"
                     remoteBtnRight <- "Released"
+                    remoteBattery  <- -1
+                    remoteGreenBtn <- false
                     broadcastRemoteStatus true
                     use remoteCts = CancellationTokenSource.CreateLinkedTokenSource(ct)
                     use _disconnectSub =
@@ -221,6 +227,16 @@ type RemoteStreamService(logger: ILogger<RemoteStreamService>) =
                             match ev.Channel with
                             | Left  -> remoteBtnLeft  <- string ev.Button
                             | Right -> remoteBtnRight <- string ev.Button
+                            broadcastRemoteState())
+                    use _greenBtnSub =
+                        remote.GreenButton
+                        |> Observable.subscribe (fun pressed ->
+                            remoteGreenBtn <- pressed
+                            broadcastRemoteState())
+                    use _batterySub =
+                        remote.Battery
+                        |> Observable.subscribe (fun pct ->
+                            remoteBattery <- pct
                             broadcastRemoteState())
                     try
                         do! Task.Delay(Timeout.Infinite, remoteCts.Token)

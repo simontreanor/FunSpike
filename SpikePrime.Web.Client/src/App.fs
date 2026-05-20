@@ -42,7 +42,7 @@ let snapshot,        setSnapshot        = createSignal<ISnapshot option>(None)
 let connected,       setConnected       = createSignal(false)   // WebSocket to server
 let hubConnected,    setHubConnected    = createSignal(false)   // BLE hub ↔ server
 let remoteConnected, setRemoteConnected = createSignal(false)   // BLE remote ↔ server
-let remoteState,     setRemoteState     = createSignal<{| left: string; right: string |} option>(None)
+let remoteState,     setRemoteState     = createSignal<{| left: string; right: string; battery: int; greenButton: bool |} option>(None)
 let pwrHubConnected, setPwrHubConnected = createSignal(false)   // BLE 88009 hub ↔ server
 let pwrHubState,     setPwrHubState     = createSignal<{| battery: int; button: bool; portA: string; portB: string |} option>(None)
 
@@ -76,8 +76,10 @@ let rec initWs () =
             if not conn then
                 setRemoteState None |> ignore
             elif not (isNull !!msg?left) then
-                setRemoteState (Some {| left  = (!!msg?left  : string)
-                                        right = (!!msg?right : string) |}) |> ignore
+                setRemoteState (Some {| left        = (!!msg?left        : string)
+                                        right       = (!!msg?right       : string)
+                                        battery     = (!!msg?battery     : int)
+                                        greenButton = (!!msg?greenButton : bool) |}) |> ignore
         // 88009 Powered Up hub status / state
         if not (isNull !!msg?pHubConnected) then
             let conn = !!msg?pHubConnected : bool
@@ -399,6 +401,18 @@ let RemotePanel () =
         h3() { "Remote \u00B7 88010" }
         Show(when'= remoteConnected(),
              fallback = p(class'="muted") { "Not connected." }) {
+            div(class'="pwrhub-row") {
+                span(class'="pwrhub-label") { "\U0001F50B" }
+                span() {
+                    remoteState() |> Option.map (fun s -> if s.battery >= 0 then sprintf "%d%%" s.battery else "\u2014") |> Option.defaultValue "\u2014"
+                }
+            }
+            div(class'="pwrhub-row") {
+                span(class'="pwrhub-label") { "Button" }
+                span(class'= "pwrhub-btn" + (if remoteState() |> Option.map (fun s -> s.greenButton) |> Option.defaultValue false then " pwrhub-btn-active" else "")) {
+                    if remoteState() |> Option.map (fun s -> s.greenButton) |> Option.defaultValue false then "Pressed" else "Released"
+                }
+            }
             div(class'="remote-channels") {
                 RemoteChannelView "LEFT"  (remoteState() |> Option.map (fun s -> s.left)  |> Option.defaultValue "Released")
                 RemoteChannelView "RIGHT" (remoteState() |> Option.map (fun s -> s.right) |> Option.defaultValue "Released")

@@ -63,8 +63,10 @@ let private parseChannel : byte -> RemoteChannel option = function
 /// Raises ButtonEvents whenever a button is pressed or released.
 type RemoteConnection(device: BluetoothLEDevice, char_: GattCharacteristic) =
 
-    let buttonEvt  = Event<ButtonEvent>()
-    let disconnEvt = Event<unit>()
+    let buttonEvt   = Event<ButtonEvent>()
+    let greenBtnEvt = Event<bool>()
+    let batteryEvt  = Event<int>()
+    let disconnEvt  = Event<unit>()
 
     // Route incoming LWP Port Value (Single) notifications to ButtonEvents.
     do char_.add_ValueChanged(fun _ args ->
@@ -77,6 +79,15 @@ type RemoteConnection(device: BluetoothLEDevice, char_: GattCharacteristic) =
             match parseChannel msg.Payload.[0] with
             | Some ch -> buttonEvt.Trigger { Channel = ch; Button = parseButton msg.Payload.[1] }
             | None    -> ()
+        | Some msg when msg.MsgType = MsgHubProperties && msg.Payload.Length >= 3 ->
+            // Payload: [propertyId][operation][value…]
+            let propId = msg.Payload.[0]
+            let op     = msg.Payload.[1]
+            if op = 0x06uy then  // HubPropUpdate
+                match propId with
+                | 0x02uy -> greenBtnEvt.Trigger(msg.Payload.[2] <> 0uy)  // green button
+                | 0x06uy -> batteryEvt.Trigger(int msg.Payload.[2])      // battery %
+                | _      -> ()
         | _ -> ())
 
     do device.add_ConnectionStatusChanged(fun dev _ ->
@@ -85,6 +96,12 @@ type RemoteConnection(device: BluetoothLEDevice, char_: GattCharacteristic) =
 
     /// Observable stream of button events, fired on every press and release.
     member _.ButtonEvents  : IObservable<ButtonEvent> = buttonEvt.Publish :> _
+
+    /// Fires true when the green power/BLE button is pressed, false when released.
+    member _.GreenButton   : IObservable<bool> = greenBtnEvt.Publish :> _
+
+    /// Fires with battery percentage (0–100) whenever it changes.
+    member _.Battery       : IObservable<int>  = batteryEvt.Publish :> _
 
     /// Fired when the remote disconnects from BLE.
     member _.Disconnected  : IObservable<unit> = disconnEvt.Publish :> _
@@ -172,6 +189,11 @@ let private connectAtAddressAsync (bluetoothAddress: uint64) : Task<RemoteConnec
         do! writeAsync char_ (buildPortInputFormatSetup 0uy 0uy)
         do! writeAsync char_ (buildPortInputFormatSetup 1uy 0uy)
         printfn "  [remote] subscribed to left and right button channels"
+
+        // Subscribe to Hub Properties: green button (0x02) and battery % (0x06).
+        do! writeAsync char_ (buildHubPropertiesSubscribe 0x02uy)
+        do! writeAsync char_ (buildHubPropertiesSubscribe 0x06uy)
+        printfn "  [remote] subscribed to button and battery properties"
 
         return conn
     }
