@@ -150,3 +150,11 @@ snap[1]  bat=10%  yaw=-2    pitch=29    roll=27     face=Top
     port D  distance = -1 mm
     port F  motor pos=98 relPos=98 speed=0% power=0%
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+## Disclaimer
+
+LEGO and SPIKE Prime are trademarks of the LEGO Group. This project is not sponsored, endorsed, or affiliated with the LEGO Group in any way.
